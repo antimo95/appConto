@@ -1,0 +1,272 @@
+@if (analysis(); as analysis) {
+  <div class="status" aria-live="polite">
+    <p class="status-message" [class.problem]="analysis.status !== 'complete'">
+      {{ statusMessages[analysis.status] }}
+    </p>
+    <app-badge
+      [label]="confidenceLabels[analysis.confidence]"
+      [tone]="analysis.confidence === 'high' ? 'positive' : analysis.confidence === 'low' ? 'negative' : 'neutral'"
+    />
+  </div>
+  <p class="file-name">{{ analysis.fileName }}</p>
+
+  @if (analysis.warnings.length > 0) {
+    <ul class="warnings" aria-label="Avvisi dell'estrazione">
+      @for (warning of analysis.warnings; track $index) {
+        <li>{{ warning.message }}</li>
+      }
+    </ul>
+  }
+}
+
+@if (conflict(); as period) {
+  <div class="conflict">
+    <p>Esiste già un cedolino per {{ formatMonth(period) }}.</p>
+    <label class="check">
+      <input
+        type="checkbox"
+        class="checkbox-control"
+        [checked]="replaceExisting()"
+        (change)="setReplace($event)"
+      />
+      Sostituisci il cedolino esistente
+    </label>
+  </div>
+}
+
+<div class="fields">
+  @for (field of scalarFields; track field.key) {
+    <div class="field">
+      <label [for]="'payslip-' + field.key">{{ field.label }}</label>
+      <input
+        [id]="'payslip-' + field.key"
+        [type]="field.kind === 'month' ? 'month' : 'text'"
+        [attr.inputmode]="field.kind === 'amount' || field.kind === 'number' ? 'decimal' : null"
+        [value]="values()[field.key]"
+        [attr.aria-invalid]="scalarErrors()[field.key] ? 'true' : null"
+        [attr.aria-describedby]="scalarErrors()[field.key] ? 'payslip-error-' + field.key : null"
+        (input)="setScalar(field.key, $event)"
+      />
+      @if (scalarErrors()[field.key]; as message) {
+        <span class="field-error" [id]="'payslip-error-' + field.key">{{ message }}</span>
+      }
+    </div>
+  }
+</div>
+
+<h3>Voci</h3>
+<div class="scroller">
+  <table class="rows items">
+    <thead>
+      <tr>
+        <th scope="col">Codice</th>
+        <th scope="col">Descrizione</th>
+        <th scope="col">Sezione</th>
+        <th scope="col">Importo (€)</th>
+        <th scope="col">Quantità</th>
+        <th scope="col">Unità</th>
+        <th scope="col"><span class="sr-only">Azioni</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (row of items(); track row.id; let i = $index) {
+        <tr>
+          <td>
+            <input
+              type="text"
+              [attr.aria-label]="'Codice della voce ' + (i + 1)"
+              [value]="row.code"
+              (input)="setItem(row.id, 'code', $event)"
+            />
+          </td>
+          <td>
+            <input
+              type="text"
+              [attr.aria-label]="'Descrizione della voce ' + (i + 1)"
+              [attr.aria-invalid]="itemErrors()[i].description ? 'true' : null"
+              [value]="row.description"
+              (input)="setItem(row.id, 'description', $event)"
+            />
+            @if (itemErrors()[i].description; as message) {
+              <span class="field-error">{{ message }}</span>
+            }
+          </td>
+          <td>
+            <select
+              [attr.aria-label]="'Sezione della voce ' + (i + 1)"
+              (change)="setItem(row.id, 'section', $event)"
+            >
+              @for (section of sections; track section) {
+                <option [value]="section" [selected]="row.section === section">
+                  {{ sectionLabels[section] }}
+                </option>
+              }
+            </select>
+          </td>
+          <td>
+            <input
+              type="text"
+              inputmode="decimal"
+              [attr.aria-label]="'Importo della voce ' + (i + 1)"
+              [attr.aria-invalid]="itemErrors()[i].amount ? 'true' : null"
+              [value]="row.amount"
+              (input)="setItem(row.id, 'amount', $event)"
+            />
+            @if (itemErrors()[i].amount; as message) {
+              <span class="field-error">{{ message }}</span>
+            }
+          </td>
+          <td>
+            <input
+              type="text"
+              inputmode="decimal"
+              [attr.aria-label]="'Quantità della voce ' + (i + 1)"
+              [attr.aria-invalid]="itemErrors()[i].quantity ? 'true' : null"
+              [value]="row.quantity"
+              (input)="setItem(row.id, 'quantity', $event)"
+            />
+          </td>
+          <td>
+            <input
+              type="text"
+              [attr.aria-label]="'Unità della voce ' + (i + 1)"
+              [value]="row.unit"
+              (input)="setItem(row.id, 'unit', $event)"
+            />
+          </td>
+          <td>
+            <button
+              type="button"
+              class="ghost remove-item"
+              [attr.aria-label]="'Rimuovi la voce ' + (i + 1)"
+              (click)="removeItem(row.id)"
+            >
+              Rimuovi
+            </button>
+          </td>
+        </tr>
+      } @empty {
+        <tr>
+          <td colspan="7" class="empty-row">Nessuna voce.</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>
+<button type="button" class="secondary add-item" (click)="addItem()">Aggiungi voce</button>
+
+<h3>Ferie e P.A.R.</h3>
+<div class="scroller">
+  <table class="rows leaves">
+    <thead>
+      <tr>
+        <th scope="col">Tipo</th>
+        <th scope="col">Maturato</th>
+        <th scope="col">Goduto</th>
+        <th scope="col">Residuo</th>
+        <th scope="col">Unità</th>
+        <th scope="col"><span class="sr-only">Azioni</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (row of leaves(); track row.id; let i = $index) {
+        <tr>
+          <td>
+            <select
+              [attr.aria-label]="'Tipo del saldo ' + (i + 1)"
+              [attr.aria-invalid]="leaveErrors()[i].type ? 'true' : null"
+              (change)="setLeave(row.id, 'type', $event)"
+            >
+              @for (type of leaveTypes; track type) {
+                <option [value]="type" [selected]="row.type === type">{{ leaveLabels[type] }}</option>
+              }
+            </select>
+            @if (leaveErrors()[i].type; as message) {
+              <span class="field-error">{{ message }}</span>
+            }
+          </td>
+          <td>
+            <input
+              type="text"
+              inputmode="decimal"
+              [attr.aria-label]="'Maturato del saldo ' + (i + 1)"
+              [attr.aria-invalid]="leaveErrors()[i].accrued ? 'true' : null"
+              [value]="row.accrued"
+              (input)="setLeave(row.id, 'accrued', $event)"
+            />
+            @if (leaveErrors()[i].accrued; as message) {
+              <span class="field-error">{{ message }}</span>
+            }
+          </td>
+          <td>
+            <input
+              type="text"
+              inputmode="decimal"
+              [attr.aria-label]="'Goduto del saldo ' + (i + 1)"
+              [attr.aria-invalid]="leaveErrors()[i].used ? 'true' : null"
+              [value]="row.used"
+              (input)="setLeave(row.id, 'used', $event)"
+            />
+            @if (leaveErrors()[i].used; as message) {
+              <span class="field-error">{{ message }}</span>
+            }
+          </td>
+          <td>
+            <input
+              type="text"
+              inputmode="decimal"
+              [attr.aria-label]="'Residuo del saldo ' + (i + 1)"
+              [attr.aria-invalid]="leaveErrors()[i].remaining ? 'true' : null"
+              [value]="row.remaining"
+              (input)="setLeave(row.id, 'remaining', $event)"
+            />
+            @if (leaveErrors()[i].remaining; as message) {
+              <span class="field-error">{{ message }}</span>
+            }
+          </td>
+          <td>
+            <input
+              type="text"
+              [attr.aria-label]="'Unità del saldo ' + (i + 1)"
+              [value]="row.unit"
+              (input)="setLeave(row.id, 'unit', $event)"
+            />
+          </td>
+          <td>
+            <button
+              type="button"
+              class="ghost remove-leave"
+              [attr.aria-label]="'Rimuovi il saldo ' + (i + 1)"
+              (click)="removeLeave(row.id)"
+            >
+              Rimuovi
+            </button>
+          </td>
+        </tr>
+      } @empty {
+        <tr>
+          <td colspan="6" class="empty-row">Nessun saldo.</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>
+<button type="button" class="secondary add-leave" [disabled]="leavesFull()" (click)="addLeave()">
+  Aggiungi saldo
+</button>
+
+@if (problemCount() > 0) {
+  <p class="message--error problems" role="alert">
+    {{ problemCount() === 1 ? 'Manca o non è valido 1 valore' : 'Mancano o non sono validi ' + problemCount() + ' valori' }}:
+    la conferma è bloccata finché non sono corretti.
+  </p>
+}
+
+<div class="actions">
+  <button type="button" class="confirm" [disabled]="!canConfirm()" (click)="confirm()">
+    {{ analysis() ? 'Conferma e salva' : 'Salva modifiche' }}
+  </button>
+  <button type="button" class="secondary cancel" [disabled]="busy()" (click)="cancelled.emit()">
+    Annulla
+  </button>
+</div>

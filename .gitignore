@@ -23,3 +23,9 @@ apps/backend/data/
 /dist-package/
 
 .superpowers/
+
+# Playwright (test end-to-end): risultati, report e tracce
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

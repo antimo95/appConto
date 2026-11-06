@@ -1,0 +1,50 @@
+{
+  // Task per lanciare le suite di test da VS Code (Terminale > Esegui attività…).
+  // Ogni task richiama uno script npm del package.json alla radice: comandi e
+  // filtri stanno in un posto solo. Guida: docs/testing-cedolini.md
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Cedolini: test backend",
+      "type": "npm",
+      "script": "test:payslips:backend",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Cedolini: test frontend",
+      "type": "npm",
+      "script": "test:payslips:frontend",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Cedolini: test e2e (Playwright)",
+      "type": "npm",
+      "script": "test:payslips:e2e",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Cedolini: suite completa",
+      "type": "npm",
+      "script": "test:payslips",
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Test backend",
+      "type": "npm",
+      "script": "test:backend",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Test frontend",
+      "type": "npm",
+      "script": "test:frontend",
+      "group": "test",
+      "problemMatcher": []
+    }
+  ]
+}

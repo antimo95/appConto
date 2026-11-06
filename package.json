@@ -21,6 +21,10 @@
     "test": "npm run test:backend && npm run test:frontend",
     "test:backend": "tsx --test \"apps/backend/src/**/*.test.ts\"",
     "test:frontend": "npm test --prefix apps/frontend -- --watch=false",
+    "test:payslips": "npm run test:payslips:backend && npm run test:payslips:frontend && npm run test:payslips:e2e",
+    "test:payslips:backend": "tsx --test \"apps/backend/src/modules/payslips/**/*.test.ts\" \"apps/backend/src/modules/maintenance/*payslips*.test.ts\" \"apps/backend/src/*payslips*.test.ts\"",
+    "test:payslips:frontend": "npm test --prefix apps/frontend -- --watch=false --include \"src/app/features/payslips/**/*.spec.ts\"",
+    "test:payslips:e2e": "npm run build:frontend && playwright test",
     "db:generate": "drizzle-kit generate --config apps/backend/drizzle.config.ts"
   },
   "keywords": [],
@@ -32,9 +36,11 @@
     "drizzle-orm": "^0.45.2",
     "express": "^5.2.1",
     "papaparse": "^5.5.4",
+    "pdfjs-dist": "6.4.299",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "1.64.1",
     "@types/better-sqlite3": "^9.6.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",

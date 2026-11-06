@@ -1,0 +1,165 @@
+<app-page-layout>
+  <app-panel>
+    <app-section-header
+      title="Cedolini"
+      subtitle="Carica il PDF, verifica i valori estratti e confronta un mese con il precedente."
+    >
+      <div panelActions>
+        <button
+          type="button"
+          class="upload"
+          [disabled]="phase() !== 'idle' || editing()"
+          (click)="openFilePicker()"
+        >
+          Carica cedolino
+        </button>
+        <input
+          #fileInput
+          type="file"
+          hidden
+          accept="application/pdf,.pdf"
+          aria-label="Scegli il PDF del cedolino"
+          (change)="onFileSelected($event)"
+        />
+      </div>
+    </app-section-header>
+
+    <p class="status" aria-live="polite">{{ statusText() }}</p>
+    @if (actionError(); as message) {
+      <p class="message--error" role="alert">{{ message }}</p>
+    }
+  </app-panel>
+
+  @if (showNewReview()) {
+    <app-panel>
+      <app-section-header title="Verifica del cedolino" />
+      <app-payslip-review
+        [draft]="analysis()!.draft"
+        [analysis]="analysis()"
+        [takenPeriods]="takenPeriods()"
+        [busy]="phase() === 'saving'"
+        (confirmed)="confirmNew($event)"
+        (cancelled)="cancelNew()"
+      />
+    </app-panel>
+  } @else if (list.hasValue()) {
+    @if (items().length === 0) {
+      <app-panel>
+        <div class="empty">
+          <app-empty-state
+            message="Nessun cedolino importato."
+            actionLabel="Carica cedolino"
+            (action)="openFilePicker()"
+          />
+        </div>
+      </app-panel>
+    } @else {
+      <app-panel>
+        <app-section-header title="Cedolini importati" />
+        <div class="scroller">
+          <table class="payslips">
+            <thead>
+              <tr>
+                <th scope="col">Mese</th>
+                <th scope="col" class="numeric">Netto</th>
+                <th scope="col" class="numeric">Competenze</th>
+                <th scope="col" class="numeric">Trattenute</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of items(); track item.id) {
+                <tr [class.selected]="item.id === selected()?.id" (click)="select(item.period)">
+                  <td>
+                    <button
+                      type="button"
+                      class="month"
+                      [attr.aria-current]="item.id === selected()?.id ? 'true' : null"
+                    >
+                      {{ formatMonth(item.period) }}
+                    </button>
+                  </td>
+                  <td class="numeric"><app-amount [value]="euros(item.netCents)" tone="neutral" /></td>
+                  <td class="numeric">
+                    <app-amount [value]="euros(item.totalEarningsCents)" tone="neutral" />
+                  </td>
+                  <td class="numeric">
+                    <app-amount [value]="euros(item.totalDeductionsCents)" tone="neutral" />
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </app-panel>
+
+      @if (summaries.hasValue() && summaries.value().leave; as leave) {
+        <app-panel>
+          <app-section-header title="Riepilogo ferie e permessi" />
+          <app-payslip-leave-overview [overview]="leave" (selectPeriod)="select($event)" />
+        </app-panel>
+      }
+
+      @if (selected(); as selected) {
+        <app-panel>
+          <app-section-header [title]="formatMonth(selected.period)" />
+          <app-stat-card-grid [items]="kpis()" />
+        </app-panel>
+
+        <app-panel>
+          <app-section-header title="Andamento mensile" />
+          @if (summaries.hasValue()) {
+            <app-payslip-trend [trend]="summaries.value().trend" />
+          } @else if (summariesError(); as message) {
+            <app-error-retry [message]="message" (retry)="summaries.reload()" />
+          } @else {
+            <p class="message">Caricamento in corso…</p>
+          }
+        </app-panel>
+
+        <app-panel>
+          <app-section-header title="Confronto con il mese precedente" />
+          @if (summaries.hasValue()) {
+            <app-payslip-comparison [comparison]="comparison()" />
+          } @else if (summariesError(); as message) {
+            <app-error-retry [message]="message" (retry)="summaries.reload()" />
+          } @else {
+            <p class="message">Caricamento in corso…</p>
+          }
+        </app-panel>
+
+        <app-panel>
+          <app-section-header title="Dettaglio" />
+          @if (detailData(); as detail) {
+            @if (editing()) {
+              <app-payslip-review
+                [draft]="detail"
+                [takenPeriods]="takenPeriods()"
+                [busy]="phase() === 'saving'"
+                (confirmed)="confirmEdit($event)"
+                (cancelled)="cancelEdit()"
+              />
+            } @else {
+              <app-payslip-detail
+                [detail]="detail"
+                (edit)="startEdit()"
+                (remove)="deleteSelected()"
+              />
+            }
+          } @else if (detailError(); as message) {
+            <app-error-retry [message]="message" (retry)="detail.reload()" />
+          } @else {
+            <p class="message">Caricamento in corso…</p>
+          }
+        </app-panel>
+      }
+    }
+  } @else if (listError(); as message) {
+    <app-panel>
+      <app-error-retry [message]="message" (retry)="reloadAll()" />
+    </app-panel>
+  } @else {
+    <app-panel>
+      <p class="message">Caricamento in corso…</p>
+    </app-panel>
+  }
+</app-page-layout>

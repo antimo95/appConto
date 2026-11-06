@@ -1,0 +1,64 @@
+@use '../../shared/styles/mixins';
+@use '../../shared/styles/typography';
+
+:host {
+  display: block;
+}
+
+.message {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.intro {
+  margin: 0 0 var(--space-5);
+  @include typography.text('secondary');
+}
+
+.deltas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-8);
+  margin: 0 0 var(--space-7);
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .label {
+    @include typography.text('label');
+  }
+
+  /* Il segno è nel testo: il colore rafforza, non è l'unico canale. */
+  .value {
+    @include typography.text('financial-row');
+  }
+
+  .value.positive {
+    color: var(--color-income);
+  }
+
+  .value.negative {
+    color: var(--color-expense);
+  }
+
+  .percent {
+    @include typography.text('caption');
+  }
+}
+
+.scroller {
+  @include mixins.data-table;
+}
+
+.changes {
+  min-width: 46rem;
+
+  td app-badge {
+    margin-left: var(--space-3);
+  }
+}

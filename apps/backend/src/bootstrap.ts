@@ -3,6 +3,7 @@ import { databaseSchema, runMigrations } from './db/client.js';
 import { safeMigrate, type MigrationOutcome } from './db/safe-migrate.js';
 import { readAppSchema } from './db/schema-version.js';
 import { backupService } from './modules/maintenance/index.js';
+import { payslipsStorage } from './modules/payslips/index.js';
 import { transactionsService } from './modules/transactions/index.js';
 import { logger } from './shared/logger.js';
 
@@ -55,6 +56,15 @@ export function bootstrap(migrationsFolder: string = config.migrationsFolder): M
   const backfilled = transactionsService.backfillFingerprints();
   if (backfilled > 0) {
     logger.info(`Fingerprint calcolato per ${String(backfilled)} transazioni preesistenti`);
+  }
+
+  // I PDF dei cedolini che la versione precedente teneva su disco entrano in
+  // archivio, se un cedolino ne ha l'hash. Dopo le migrazioni, perché serve la
+  // tabella dei documenti. Nel log solo i conteggi: mai nomi di file né
+  // identificativi.
+  const reconciled = payslipsStorage.reconcile();
+  if (Object.values(reconciled).some((value) => value > 0)) {
+    logger.info('PDF dei cedolini della versione precedente riconciliati', { ...reconciled });
   }
 
   return outcome;

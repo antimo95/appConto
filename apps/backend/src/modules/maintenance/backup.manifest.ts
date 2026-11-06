@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { closeSync, openSync, readSync, statSync } from 'node:fs';
 import type Database from 'better-sqlite3';
 import { readDatabaseSchema, type SchemaVersion } from '../../db/schema-version.js';
+import type { PayslipDocumentEntry } from '../payslips/index.js';
 import { openSqlite } from '../../db/sqlite.js';
 import type { BackupKind } from './backup.naming.js';
 
@@ -21,8 +22,32 @@ import type { BackupKind } from './backup.naming.js';
  * questa applicazione sappia verificare.
  */
 
-/** Il formato riconosciuto. Un valore diverso significa "non so verificarlo". */
-export const BACKUP_FORMAT = 'appconto-backup/1';
+/**
+ * Il formato scritto oggi. Rispetto al precedente aggiunge, obbligatorio,
+ * l'elenco dei documenti dei cedolini contenuti nel database.
+ */
+export const BACKUP_FORMAT = 'appconto-backup/2';
+
+/**
+ * Il formato dei backup anteriori ai documenti dei cedolini: ancora
+ * verificabile e ripristinabile. Qualunque altro valore significa "non so
+ * verificarlo".
+ */
+export const LEGACY_BACKUP_FORMAT = 'appconto-backup/1';
+
+/**
+ * I documenti dei cedolini che il database dichiara di contenere.
+ *
+ * Solo identificativi, hash e byte: il manifest è un file in chiaro accanto
+ * al backup, e nessun dato dei cedolini deve finirci. La verifica confronta
+ * questo elenco con l'audit del file, voce per voce.
+ */
+export interface BackupPayslipDocuments {
+  /** Un elemento per documento, ordinati per `payslipId`. */
+  readonly entries: readonly PayslipDocumentEntry[];
+  /** I cedolini senza documento nel database. */
+  readonly withoutDocument: number;
+}
 
 export interface BackupManifest {
   readonly format: string;
@@ -37,6 +62,8 @@ export interface BackupManifest {
   readonly databaseSha256: string;
   /** Righe per tabella applicativa, a scopo di confronto e di lettura umana. */
   readonly rowCounts: Record<string, number>;
+  /** Presente, e obbligatorio, dal formato 2; assente in un backup del formato 1. */
+  readonly payslipDocuments?: BackupPayslipDocuments;
 }
 
 /** Quanto si legge alla volta calcolando l'impronta. */
@@ -153,6 +180,55 @@ function count(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
 }
 
+/** Il valore, se è un intero non negativo. */
+function integer(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null;
+}
+
+const SHA256_HEX = /^[0-9a-f]{64}$/;
+
+/**
+ * La sezione dei documenti, se ha esattamente la forma attesa.
+ *
+ * Nessuna tolleranza: un elemento malformato non si scarta in silenzio,
+ * perché un elenco a cui manca una voce non si distinguerebbe più da un
+ * archivio a cui manca un documento.
+ */
+function payslipDocumentsOf(value: unknown): BackupPayslipDocuments | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return null;
+  }
+
+  const raw = value as Record<string, unknown>;
+  const withoutDocument = integer(raw.withoutDocument);
+  if (withoutDocument === null || !Array.isArray(raw.entries)) {
+    return null;
+  }
+
+  const entries: PayslipDocumentEntry[] = [];
+  for (const item of raw.entries as unknown[]) {
+    if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+      return null;
+    }
+
+    const entry = item as Record<string, unknown>;
+    const bytes = integer(entry.bytes);
+    if (
+      typeof entry.payslipId !== 'string' ||
+      entry.payslipId.length === 0 ||
+      typeof entry.sha256 !== 'string' ||
+      !SHA256_HEX.test(entry.sha256) ||
+      bytes === null
+    ) {
+      return null;
+    }
+
+    entries.push({ payslipId: entry.payslipId, sha256: entry.sha256, bytes });
+  }
+
+  return { entries, withoutDocument };
+}
+
 /**
  * Interpreta il testo di un manifest.
  *
@@ -179,11 +255,21 @@ export function parseManifest(content: string): ManifestReading {
   if (format === null) {
     return { ok: false, problem: 'il manifest non dichiara il formato.' };
   }
-  if (format !== BACKUP_FORMAT) {
+  if (format !== BACKUP_FORMAT && format !== LEGACY_BACKUP_FORMAT) {
     return {
       ok: false,
-      problem: `formato di backup non supportato: "${format}" (atteso "${BACKUP_FORMAT}").`,
+      problem: `formato di backup non supportato: "${format}" (atteso "${BACKUP_FORMAT}" o "${LEGACY_BACKUP_FORMAT}").`,
     };
+  }
+
+  // Dal formato 2 l'elenco dei documenti è parte del manifest: senza, il
+  // backup non si può verificare fino in fondo, quindi non è valido.
+  let payslipDocuments: BackupPayslipDocuments | null = null;
+  if (format === BACKUP_FORMAT) {
+    payslipDocuments = payslipDocumentsOf(raw.payslipDocuments);
+    if (payslipDocuments === null) {
+      return { ok: false, problem: 'il manifest non descrive correttamente i documenti dei cedolini.' };
+    }
   }
 
   const databaseSha256 = text(raw.databaseSha256);
@@ -228,6 +314,7 @@ export function parseManifest(content: string): ManifestReading {
       databaseBytes: databaseBytes ?? 0,
       databaseSha256,
       rowCounts,
+      ...(payslipDocuments === null ? {} : { payslipDocuments }),
     },
   };
 }

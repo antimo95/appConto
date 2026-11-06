@@ -1,0 +1,86 @@
+:host {
+  display: block;
+}
+
+p,
+ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+
+section {
+  margin-bottom: var(--space-7);
+  color: var(--color-text-secondary);
+}
+
+.missing {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.type-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+/* Come le altre tabelle della pagina, ma senza il mixin: pesa meno nel bundle iniziale. */
+.scroller {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  min-width: 24rem;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: var(--border-width) solid var(--color-row-divider);
+  text-align: left;
+}
+
+.numeric {
+  text-align: right;
+}
+
+button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-primary);
+  font: inherit;
+  text-transform: capitalize;
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
+  }
+
+  &:focus-visible {
+    box-shadow: 0 0 0 var(--space-1) var(--color-focus-ring);
+    outline: none;
+  }
+}
+
+.anomalies li {
+  margin-top: var(--space-3);
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--color-border);
+  border-left: var(--space-1) solid var(--color-expense);
+  border-radius: var(--radius-card);
+}
+
+.go {
+  font-weight: 600;
+  text-transform: none;
+}
+
+.title {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}

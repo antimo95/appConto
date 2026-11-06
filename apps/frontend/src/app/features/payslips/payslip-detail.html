@@ -1,0 +1,140 @@
+@let d = detail();
+
+<dl class="meta">
+  <div>
+    <dt>Mese</dt>
+    <dd>{{ formatMonth(d.period) }}</dd>
+  </div>
+  <div>
+    <dt>Datore di lavoro</dt>
+    <dd>{{ d.employer ?? '—' }}</dd>
+  </div>
+  <div>
+    <dt>File</dt>
+    <dd class="wrap">{{ d.fileName }}</dd>
+  </div>
+  <div>
+    <dt>Importato il</dt>
+    <dd>{{ formatImportedAt(d.importedAt) }}</dd>
+  </div>
+  <div>
+    <dt>Lettore</dt>
+    <dd>{{ d.parserId }}</dd>
+  </div>
+  <div>
+    <dt>Ore lavorate</dt>
+    <dd>{{ d.workedHours === null ? '—' : formatQuantity(d.workedHours) }}</dd>
+  </div>
+  <div>
+    <dt>Totale competenze</dt>
+    <dd><app-amount [value]="euros(d.totalEarningsCents)" tone="neutral" /></dd>
+  </div>
+  <div>
+    <dt>Totale trattenute</dt>
+    <dd><app-amount [value]="euros(d.totalDeductionsCents)" tone="neutral" /></dd>
+  </div>
+  <div>
+    <dt>Netto</dt>
+    <dd><app-amount [value]="euros(d.netCents)" tone="neutral" /></dd>
+  </div>
+  <div>
+    <dt>Arrotondamento</dt>
+    <dd>
+      @if (d.roundingCents !== null) {
+        <app-amount [value]="euros(d.roundingCents)" tone="neutral" />
+      } @else {
+        —
+      }
+    </dd>
+  </div>
+  <div>
+    <dt>Imponibile INPS</dt>
+    <dd>
+      @if (d.taxableInpsCents !== null) {
+        <app-amount [value]="euros(d.taxableInpsCents)" tone="neutral" />
+      } @else {
+        —
+      }
+    </dd>
+  </div>
+  <div>
+    <dt>Imponibile IRPEF</dt>
+    <dd>
+      @if (d.taxableIrpefCents !== null) {
+        <app-amount [value]="euros(d.taxableIrpefCents)" tone="neutral" />
+      } @else {
+        —
+      }
+    </dd>
+  </div>
+</dl>
+
+<div class="actions">
+  <button type="button" class="secondary edit" (click)="edit.emit()">Modifica</button>
+  <button type="button" class="danger remove" (click)="remove.emit()">Elimina</button>
+  @if (d.hasDocument) {
+    <a class="document" [href]="documentUrl()" target="_blank" rel="noopener">Apri PDF</a>
+  }
+</div>
+
+<h3>Voci</h3>
+@if (d.items.length === 0) {
+  <p class="message">Nessuna voce.</p>
+} @else {
+  <div class="scroller">
+    <table class="items">
+      <thead>
+        <tr>
+          <th scope="col">Codice</th>
+          <th scope="col">Descrizione</th>
+          <th scope="col">Sezione</th>
+          <th scope="col" class="numeric">Quantità</th>
+          <th scope="col" class="numeric">Importo</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (item of d.items; track $index) {
+          <tr>
+            <td>{{ item.code ?? '—' }}</td>
+            <td>{{ item.description }}</td>
+            <td>{{ sectionLabels[item.section] }}</td>
+            <td class="numeric">
+              {{ item.quantity === null ? '—' : formatQuantity(item.quantity) + (item.unit ? ' ' + item.unit : '') }}
+            </td>
+            <td class="numeric"><app-amount [value]="euros(item.amountCents)" tone="neutral" /></td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}
+
+<h3>Ferie e P.A.R.</h3>
+@if (d.leaveBalances.length === 0) {
+  <p class="message">Nessun saldo di ferie o P.A.R. su questo cedolino.</p>
+} @else {
+  <div class="scroller">
+    <table class="leaves">
+      <thead>
+        <tr>
+          <th scope="col">Tipo</th>
+          <th scope="col" class="numeric">Maturato</th>
+          <th scope="col" class="numeric">Goduto</th>
+          <th scope="col" class="numeric">Residuo</th>
+          <th scope="col">Unità</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (leave of d.leaveBalances; track leave.type) {
+          <tr>
+            <td>{{ leaveLabels[leave.type] }}</td>
+            <td class="numeric">{{ formatQuantity(leave.accrued) }}</td>
+            <td class="numeric">{{ formatQuantity(leave.used) }}</td>
+            <td class="numeric">{{ formatQuantity(leave.remaining) }}</td>
+            <td>{{ leave.unit }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}

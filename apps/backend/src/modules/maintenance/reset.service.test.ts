@@ -35,6 +35,7 @@ const { merchantsService } = await import('../merchants/index.js');
 const { categoriesService } = await import('../categories/index.js');
 const { settingsService } = await import('../settings/index.js');
 const { loansService, DEFAULT_LOAN_QUERY } = await import('../loans/index.js');
+const { payslipsService } = await import('../payslips/index.js');
 const { backupService } = await import('./backup.service.js');
 const { resetService, userTables } = await import('./reset.service.js');
 const { PENDING_RESTORE_FILE } = await import('./restore-pending.js');
@@ -95,11 +96,18 @@ function contiDiUnArchivioNuovo(): Record<string, number> {
 /** I conteggi dell'archivio in prova, letti dai servizi pubblici. */
 function contiAttuali(): Record<string, number> {
   const prestiti = loansService.list(DEFAULT_LOAN_QUERY).items;
+  const cedolini = payslipsService
+    .list({ from: null, to: null, sortDirection: null })
+    .items.map((cedolino) => payslipsService.getById(cedolino.id));
 
   return {
     loan_repayments: prestiti.reduce((totale, prestito) => totale + prestito.repaymentCount, 0),
     loans: prestiti.length,
     merchants: merchantsService.listAllWithCategory().length,
+    payslip_documents: cedolini.filter((cedolino) => cedolino.hasDocument).length,
+    payslip_items: cedolini.reduce((totale, cedolino) => totale + cedolino.items.length, 0),
+    payslip_leave_balances: cedolini.reduce((totale, cedolino) => totale + cedolino.leaveBalances.length, 0),
+    payslips: cedolini.length,
     // Riga unica, con identificativo fisso: c'è sempre, e sempre una sola.
     settings: 1,
     transactions: transactionsService.listAll().length,

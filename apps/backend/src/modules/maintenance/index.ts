@@ -8,10 +8,12 @@ export {
 export { RETENTION, backupsToPrune, isoWeekKey } from './backup.retention.js';
 export {
   BACKUP_FORMAT,
+  LEGACY_BACKUP_FORMAT,
   inspectDatabase,
   parseManifest,
   sha256OfFile,
   type BackupManifest,
+  type BackupPayslipDocuments,
 } from './backup.manifest.js';
 export { BackupFailedError, backupService, type BackupCheck, type BackupInfo } from './backup.service.js';
 export { createAutoBackupScheduler } from './auto-backup.js';

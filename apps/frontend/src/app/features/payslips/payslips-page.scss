@@ -1,0 +1,61 @@
+@use '../../shared/styles/mixins';
+@use '../../shared/styles/typography';
+
+.status {
+  margin: 0;
+  @include typography.text('secondary');
+
+  &:empty {
+    display: none;
+  }
+}
+
+.message {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.message--error {
+  margin: var(--space-4) 0 0;
+}
+
+.empty {
+  padding: var(--space-8) 0;
+  text-align: center;
+}
+
+.scroller {
+  @include mixins.data-table;
+}
+
+.payslips {
+  min-width: 30rem;
+
+  /* Tutta la riga seleziona: il pulsante resta il controllo da tastiera. */
+  tbody tr {
+    cursor: pointer;
+  }
+}
+
+/* Il mese è un pulsante, non un link: scegliere non cambia pagina. */
+.month {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text-primary);
+  font: inherit;
+  font-weight: 600;
+  text-transform: capitalize;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--color-primary);
+    text-decoration: underline;
+  }
+
+  /* Il pulsante è l'unico punto di arrivo con Tab: il focus deve vedersi. */
+  &:focus-visible {
+    box-shadow: 0 0 0 var(--space-1) var(--color-focus-ring);
+    outline: none;
+  }
+}

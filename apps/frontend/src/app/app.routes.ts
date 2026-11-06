@@ -62,5 +62,13 @@ export const routes: Routes = [
     component: SettingsPage, 
     title: 'Impostazioni' 
   },
+  {
+    path: 'payslips',
+    // Caricata solo quando serve: la pagina porta con sé revisione, confronti e
+    // riepilogo ferie, e il bundle iniziale è a ridosso del limite di budget.
+    loadComponent: () =>
+      import('./features/payslips/payslips-page').then((module) => module.PayslipsPage),
+    title: 'Cedolini'
+  },
   { path: '**', redirectTo: '' }
 ];

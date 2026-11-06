@@ -3,6 +3,7 @@ import { config } from '../../config.js';
 import { atomically, db, vacuum } from '../../db/client.js';
 import { ConflictError } from '../../shared/errors.js';
 import { logger } from '../../shared/logger.js';
+import { payslipsStorage } from '../payslips/index.js';
 import { SETTINGS_ID } from '../settings/settings.schema.js';
 import { backupService } from './backup.service.js';
 import { readPendingRestore } from './restore-pending.js';
@@ -13,7 +14,8 @@ import { readPendingRestore } from './restore-pending.js';
  * È l'operazione più distruttiva che questa applicazione permette, e per questo
  * l'ordine dei passaggi è la garanzia:
  *
- *     backup verificato  ->  svuotamento  ->  seed  ->  ricompattazione
+ *     backup verificato  ->  PDF fuori dal database  ->  svuotamento  ->  seed
+ *       ->  ricompattazione  ->  checkpoint del WAL
  *
  * Il backup è **la condizione per procedere**, non un accompagnamento: se non
  * riesce, l'archivio non viene toccato. È lo stesso principio del backup
@@ -124,6 +126,29 @@ export const resetService = {
       );
     }
 
+    /*
+     * I PDF dei cedolini che stanno fuori dal database: le analisi in memoria
+     * e le cartelle della versione precedente.
+     *
+     * Prima dello svuotamento, perché è il passo che può fallire per cause
+     * esterne (un file aperto da un altro programma): se fallisce, il reset si
+     * ferma con l'archivio intatto, invece di lasciare un database vuoto
+     * accanto a PDF personali che nessun cedolino descrive più. Chiamato
+     * sull'oggetto al momento dell'uso, non catturato all'importazione.
+     */
+    try {
+      payslipsStorage.purge();
+    } catch (error) {
+      // Solo il codice dell'errore: il messaggio di sistema riporta percorsi
+      // e nomi di file, che non devono arrivare all'utente né ai log.
+      const code = (error as { code?: unknown } | null)?.code;
+      throw new ResetFailedError(
+        `L'archivio non è stato azzerato perché non è stato possibile eliminare i PDF dei cedolini rimasti fuori dall'archivio (${
+          typeof code === 'string' ? code : 'errore sconosciuto'
+        }). Chiudi i programmi che potrebbero usarli e riprova.`,
+      );
+    }
+
     atomically(() => {
       /*
        * I vincoli di integrità si verificano al commit, non a ogni istruzione.
@@ -159,6 +184,14 @@ export const resetService = {
      * dati e falso sul disco.
      */
     vacuum();
+
+    /*
+     * In modalità WAL il `VACUUM` scrive il file ricompattato nel `-wal`, e il
+     * `-wal` conserva anche le pagine di prima: i byte dei PDF eliminati
+     * resterebbero sul disco fino al prossimo checkpoint. `TRUNCATE` porta
+     * tutto nel file principale e azzera il `-wal`.
+     */
+    db.run(sql`PRAGMA wal_checkpoint(TRUNCATE)`);
 
     logger.info('Archivio azzerato', { backup: backupName, eliminate: removed });
 

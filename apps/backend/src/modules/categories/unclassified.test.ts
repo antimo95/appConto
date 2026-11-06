@@ -101,7 +101,9 @@ const versioneDopoLaSeconda = databaseSchema();
 describe('migrazione 0009: "Da classificare" diventa soltanto null', () => {
   it('riporta a null un merchant che stava sulla riga reale', () => {
     assert.equal(primaDellaMigrazione, FALLBACK_CATEGORY_ID);
-    assert.equal(versioneDopoLaPrima.appliedCount, versionePrima.appliedCount + 1);
+    // Tutte le migrazioni successive alla 0008, non solo la 0009: altre ne arrivano dopo.
+    assert.equal(versioneDopoLaPrima.appliedCount, journalReale().length);
+    assert.ok(versioneDopoLaPrima.appliedCount > versionePrima.appliedCount);
     assert.equal(dopoLaPrimaEsecuzione, null);
   });
 

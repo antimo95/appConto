@@ -1,0 +1,73 @@
+@if (comparison(); as comparison) {
+  <p class="intro">
+    {{ formatMonth(comparison.period) }} rispetto a {{ formatMonth(comparison.previousPeriod) }}
+  </p>
+
+  <ul class="deltas">
+    @for (row of rows(); track row.label) {
+      <li>
+        <span class="label">{{ row.label }}</span>
+        <span
+          class="value"
+          [class.positive]="row.tone === 'positive'"
+          [class.negative]="row.tone === 'negative'"
+        >
+          {{ signedEuros(row.delta.deltaCents) }}
+          @if (row.delta.deltaPercent !== null) {
+            <span class="percent">({{ signedPercent(row.delta.deltaPercent) }})</span>
+          }
+        </span>
+      </li>
+    }
+  </ul>
+
+  @if (changedItems().length === 0) {
+    <p class="message">Nessuna voce variata rispetto a {{ formatMonth(comparison.previousPeriod) }}.</p>
+  } @else {
+    <div class="scroller">
+      <table class="changes">
+        <thead>
+          <tr>
+            <th scope="col">Voce</th>
+            <th scope="col">Sezione</th>
+            <th scope="col" class="numeric">Mese precedente</th>
+            <th scope="col" class="numeric">Mese corrente</th>
+            <th scope="col" class="numeric">Variazione</th>
+            <th scope="col" class="numeric">Variazione %</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (item of changedItems(); track item.key) {
+            <tr>
+              <td>
+                {{ item.description }}
+                <app-badge [label]="statusLabels[item.status]" [tone]="itemTone(item.status)" />
+              </td>
+              <td>{{ sectionLabels[item.section] }}</td>
+              <td class="numeric">
+                @if (item.previousCents !== null) {
+                  <app-amount [value]="euros(item.previousCents)" tone="neutral" />
+                } @else {
+                  —
+                }
+              </td>
+              <td class="numeric">
+                @if (item.currentCents !== null) {
+                  <app-amount [value]="euros(item.currentCents)" tone="neutral" />
+                } @else {
+                  —
+                }
+              </td>
+              <td class="numeric">{{ signedEuros(item.deltaCents) }}</td>
+              <td class="numeric">
+                {{ item.deltaPercent === null ? '—' : signedPercent(item.deltaPercent) }}
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+} @else {
+  <p class="message">Nessun cedolino precedente da confrontare.</p>
+}

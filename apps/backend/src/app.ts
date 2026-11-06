@@ -8,6 +8,11 @@ import { importRouter } from './modules/import/index.js';
 import { loansRouter, loansService } from './modules/loans/index.js';
 import { backupsRouter, resetRouter, restoreRouter } from './modules/maintenance/index.js';
 import { merchantsRouter } from './modules/merchants/index.js';
+import {
+  payslipAnalysesRouter,
+  payslipSummariesRouter,
+  payslipsRouter,
+} from './modules/payslips/index.js';
 import { settingsRouter } from './modules/settings/index.js';
 import { summaryRouter } from './modules/summary/index.js';
 import { createTransactionsRouter } from './modules/transactions/index.js';
@@ -40,6 +45,9 @@ function createApiRouter(): Router {
   api.use('/import', importRouter);
   api.use('/loans', loansRouter);
   api.use('/merchants', merchantsRouter);
+  api.use('/payslip-analyses', payslipAnalysesRouter);
+  api.use('/payslip-summaries', payslipSummariesRouter);
+  api.use('/payslips', payslipsRouter);
   // Prepara la sostituzione dell'archivio, non la esegue: applicarla spetta
   // all'avvio successivo, quando il database non è aperto da nessuno.
   api.use('/restore', restoreRouter);

@@ -4,8 +4,10 @@ import { APP_VERSION } from '../../app-version.js';
 import { config } from '../../config.js';
 import { databaseSchema, vacuumInto } from '../../db/client.js';
 import type { SchemaVersion } from '../../db/schema-version.js';
+import { openSqlite } from '../../db/sqlite.js';
 import { ensureDataDirectories } from '../../paths.js';
 import { logger } from '../../shared/logger.js';
+import { auditPayslipDocuments, type PayslipDocumentsAudit } from '../payslips/index.js';
 import {
   BACKUP_FORMAT,
   inspectDatabase,
@@ -30,7 +32,7 @@ import { backupsToPrune } from './backup.retention.js';
  *
  * L'ordine dei passaggi è la garanzia, non un dettaglio di implementazione:
  *
- *     VACUUM INTO  ->  integrity_check  ->  conteggi  ->  impronta  ->  rename
+ *     VACUUM INTO  ->  integrity_check  ->  conteggi  ->  documenti dei cedolini  ->  impronta  ->  rename
  *
  * Un file entra in `backups/` **solo** dopo essere stato riaperto e
  * controllato. Fino a quel momento vive in `tmp/` con il suffisso `.partial`,
@@ -108,6 +110,67 @@ function freeName(kind: BackupKind, from: Date): { name: string; moment: Date } 
   throw new BackupFailedError('Impossibile trovare un nome libero per il backup.');
 }
 
+/**
+ * L'audit dei documenti dei cedolini dentro un file, aperto in sola lettura.
+ *
+ * Non solleva eccezioni, come `inspectDatabase`: un file che non si lascia
+ * controllare è un esito che chi chiama deve saper rifiutare. La connessione
+ * si chiude prima di restituire, così che il file si possa poi spostare.
+ */
+function auditFile(
+  file: string,
+): { readonly ok: true; readonly audit: PayslipDocumentsAudit } | { readonly ok: false } {
+  let sqlite;
+  try {
+    sqlite = openSqlite(file, { readonly: true, fileMustExist: true });
+
+    return { ok: true, audit: auditPayslipDocuments(sqlite) };
+  } catch {
+    return { ok: false };
+  } finally {
+    sqlite?.close();
+  }
+}
+
+/**
+ * Dove i documenti dei cedolini di un file non sono quelli che il manifest
+ * dichiara, o `null` se coincidono.
+ *
+ * Il messaggio riporta soltanto conteggi: né identificativi né hash, e
+ * tantomeno dati dei cedolini, perché finisce davanti all'utente e nei log.
+ */
+function documentsProblem(manifest: BackupManifest, audit: PayslipDocumentsAudit): string | null {
+  if (audit.mismatched.length > 0) {
+    return `${String(audit.mismatched.length)} documenti dei cedolini non hanno l'impronta registrata per il loro cedolino.`;
+  }
+
+  const declared = manifest.payslipDocuments;
+  if (declared === undefined) {
+    // Un manifest del formato 1 è stato scritto da una versione che i
+    // documenti in archivio non li conosceva: se il database ne contiene,
+    // manifest e database non vengono dallo stesso backup.
+    return audit.entries.length === 0
+      ? null
+      : 'il database contiene documenti dei cedolini che un manifest del formato 1 non può descrivere.';
+  }
+
+  const same =
+    declared.withoutDocument === audit.withoutDocument &&
+    declared.entries.length === audit.entries.length &&
+    declared.entries.every((entry, index) => {
+      const found = audit.entries[index];
+
+      return (
+        found !== undefined &&
+        found.payslipId === entry.payslipId &&
+        found.sha256 === entry.sha256 &&
+        found.bytes === entry.bytes
+      );
+    });
+
+  return same ? null : 'i documenti dei cedolini nel database non corrispondono a quelli dichiarati dal manifest.';
+}
+
 /** Rimuove i file di lavoro rimasti da un tentativo precedente. */
 function sweepPartials(): void {
   try {
@@ -180,6 +243,20 @@ export const backupService = {
       );
     }
 
+    // I documenti dei cedolini dello snapshot, non dell'archivio vivo: il
+    // manifest descrive il file che verrà pubblicato. Un documento che non ha
+    // l'hash del suo cedolino non si archivia in un backup che si
+    // dichiarerebbe verificato.
+    const documents = auditFile(partialDatabase);
+    if (!documents.ok) {
+      return abort('Il backup appena creato non permette di controllare i documenti dei cedolini.');
+    }
+    if (documents.audit.mismatched.length > 0) {
+      return abort(
+        `Il backup non è stato creato: ${String(documents.audit.mismatched.length)} documenti dei cedolini in archivio non hanno l'impronta registrata per il loro cedolino.`,
+      );
+    }
+
     const manifest: BackupManifest = {
       format: BACKUP_FORMAT,
       kind,
@@ -190,6 +267,10 @@ export const backupService = {
       databaseBytes: inspection.bytes,
       databaseSha256: sha256OfFile(partialDatabase),
       rowCounts: inspection.rowCounts,
+      payslipDocuments: {
+        entries: documents.audit.entries,
+        withoutDocument: documents.audit.withoutDocument,
+      },
     };
 
     try {
@@ -354,6 +435,21 @@ export const backupService = {
         ok: false,
         problem: `Il backup "${name}" è stato modificato dopo la creazione: l'impronta non corrisponde.`,
       };
+    }
+
+    // L'impronta dice che il file è quello descritto dal manifest; l'audit
+    // dice che i documenti dentro sono quelli che il manifest elenca.
+    const documents = auditFile(file);
+    if (!documents.ok) {
+      return {
+        ok: false,
+        problem: `Il backup "${name}" non è integro: impossibile controllare i documenti dei cedolini.`,
+      };
+    }
+
+    const problem = documentsProblem(reading.manifest, documents.audit);
+    if (problem !== null) {
+      return { ok: false, problem: `Il backup "${name}" non è valido: ${problem}` };
     }
 
     return {

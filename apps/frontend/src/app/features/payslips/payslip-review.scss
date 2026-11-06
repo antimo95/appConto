@@ -1,0 +1,133 @@
+@use '../../shared/styles/mixins';
+@use '../../shared/styles/typography';
+
+:host {
+  display: block;
+}
+
+.status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.status-message {
+  margin: 0;
+  @include typography.text('body');
+
+  &.problem {
+    color: var(--color-warning);
+  }
+}
+
+.file-name {
+  margin: var(--space-2) 0 0;
+  @include typography.text('caption');
+  overflow-wrap: anywhere;
+}
+
+.warnings {
+  margin: var(--space-4) 0 0;
+  padding-left: var(--space-7);
+  @include typography.text('secondary');
+}
+
+.conflict {
+  margin-top: var(--space-6);
+  padding: var(--space-5);
+  border: var(--border-width) solid var(--color-warning);
+  border-radius: var(--radius-control);
+
+  p {
+    margin: 0 0 var(--space-3);
+  }
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: var(--space-6);
+  margin-top: var(--space-7);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+
+  label {
+    @include typography.text('label');
+  }
+}
+
+.field-error {
+  display: block;
+  margin-top: var(--space-2);
+  @include typography.text('caption');
+  color: var(--color-error);
+}
+
+h3 {
+  margin: var(--space-8) 0 var(--space-4);
+  @include typography.text('section-title');
+}
+
+.scroller {
+  @include mixins.data-table;
+}
+
+.rows {
+  min-width: 44rem;
+
+  input,
+  select {
+    width: 100%;
+    min-width: 5rem;
+  }
+
+  td {
+    vertical-align: top;
+  }
+
+  .empty-row {
+    color: var(--color-text-muted);
+  }
+}
+
+select {
+  @include mixins.form-control;
+}
+
+.add-item,
+.add-leave {
+  margin-top: var(--space-4);
+}
+
+.problems {
+  margin: var(--space-7) 0 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-top: var(--space-7);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

@@ -1,0 +1,22 @@
+@if (trend().length < minPoints) {
+  <p class="message">Servono almeno due cedolini per vedere l'andamento.</p>
+} @else {
+  <div class="chart">
+    <div class="plot">
+      <app-line-chart
+        [points]="trend()"
+        [series]="series"
+        [xLabel]="xLabel"
+        ariaLabel="Andamento mensile di netto, competenze e trattenute"
+      />
+    </div>
+  </div>
+  <ul class="legend">
+    @for (item of series; track item.key) {
+      <li>
+        <span class="key" [style.background]="chartColor(item.color)" aria-hidden="true"></span>
+        {{ item.label }}
+      </li>
+    }
+  </ul>
+}

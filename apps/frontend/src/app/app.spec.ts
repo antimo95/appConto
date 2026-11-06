@@ -25,7 +25,7 @@ describe('App', () => {
     expect(host.querySelector('.brand')?.textContent?.trim()).toBe('Personal Finance Tracker');
   });
 
-  it('mostra le otto voci di navigazione, raggruppate in tre sezioni con etichetta', async () => {
+  it('mostra le nove voci di navigazione, raggruppate in tre sezioni con etichetta', async () => {
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
     const host = fixture.nativeElement as HTMLElement;
@@ -38,6 +38,7 @@ describe('App', () => {
       '/transactions',
       '/analytics',
       '/loans',
+      '/payslips',
       '/categories',
       '/merchants',
       '/import',

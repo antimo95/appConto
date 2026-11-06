@@ -1,0 +1,57 @@
+@use '../../shared/styles/mixins';
+@use '../../shared/styles/typography';
+
+:host {
+  display: block;
+}
+
+.meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: var(--space-5) var(--space-7);
+  margin: 0;
+
+  dt {
+    @include typography.text('label');
+  }
+
+  dd {
+    margin: var(--space-2) 0 0;
+    @include typography.text('body');
+  }
+
+  .wrap {
+    overflow-wrap: anywhere;
+  }
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: var(--space-7);
+}
+
+.document {
+  color: var(--color-primary);
+  @include typography.text('body');
+}
+
+h3 {
+  margin: var(--space-8) 0 var(--space-4);
+  @include typography.text('section-title');
+}
+
+.message {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.scroller {
+  @include mixins.data-table;
+}
+
+.items {
+  min-width: 36rem;
+}

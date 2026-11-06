@@ -1,8 +1,9 @@
 {
   // Test Explorer per i test del backend (node:test eseguito tramite tsx).
   // I test del frontend (Angular + Vitest) restano fuori: si lanciano con `npm run test:frontend`.
+  // I test end-to-end (e2e/, Playwright) li mostra l'estensione ms-playwright.playwright.
   "nodejs-testing.include": ["./apps/backend/src"],
-  "nodejs-testing.exclude": ["**/node_modules/**", "**/dist/**"],
+  "nodejs-testing.exclude": ["**/node_modules/**", "**/dist/**", "**/e2e/**"],
   "nodejs-testing.extensions": [
     { "extensions": ["ts", "mts"], "parameters": ["--import", "tsx"] }
   ],

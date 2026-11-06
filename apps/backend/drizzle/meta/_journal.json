@@ -71,6 +71,20 @@
       "when": 1793373648216,
       "tag": "0009_unclassified_to_null",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1793783898337,
+      "tag": "0010_payslips",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1793788872169,
+      "tag": "0011_payslip_documents",
+      "breakpoints": true
     }
   ]
 }
