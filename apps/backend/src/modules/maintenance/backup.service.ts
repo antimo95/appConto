@@ -252,6 +252,10 @@ export const backupService = {
       return abort('Il backup appena creato non permette di controllare i documenti dei cedolini.');
     }
     if (documents.audit.mismatched.length > 0) {
+      // Solo gli id: serve a sapere quale cedolino è corrotto, senza dati personali.
+      logger.error('Backup annullato: documenti dei cedolini senza impronta corrispondente', {
+        payslipIds: documents.audit.mismatched,
+      });
       return abort(
         `Il backup non è stato creato: ${String(documents.audit.mismatched.length)} documenti dei cedolini in archivio non hanno l'impronta registrata per il loro cedolino.`,
       );

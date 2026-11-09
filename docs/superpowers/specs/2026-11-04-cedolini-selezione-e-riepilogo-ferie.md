@@ -143,8 +143,9 @@ i mesi mancanti, se ce ne sono.
   output `selectPeriod: string` (emesso dal pulsante «Vai al cedolino» di
   un'anomalia e dai periodi della cronologia). Etichette di stato:
   `Coerente`, `Anomalia`, `Non verificabile`. Nella pagina sta in un pannello
-  con titolo «Riepilogo ferie e permessi», dopo l'elenco e prima del mese
-  selezionato; `selectPeriod` → stessa `select(period)` dell'elenco.
+  con titolo «Riepilogo ferie e permessi», in alto a tutta larghezza, prima
+  dell'elenco e del mese selezionato; `selectPeriod` → stessa `select(period)`
+  dell'elenco.
 - La sezione mostra: periodo coperto, numero di cedolini, mesi mancanti,
   ultimo residuo di Ferie e P.A.R., maturato e goduto nell'anno (da
   `yearTotals`), cronologia dei residui (tabella), stato, elenco anomalie

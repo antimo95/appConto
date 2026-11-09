@@ -30,10 +30,9 @@
           <tr>
             <th scope="col">Voce</th>
             <th scope="col">Sezione</th>
-            <th scope="col" class="numeric">Mese precedente</th>
-            <th scope="col" class="numeric">Mese corrente</th>
+            <th scope="col" class="numeric month-head">{{ formatMonth(comparison.previousPeriod) }}</th>
+            <th scope="col" class="numeric month-head">{{ formatMonth(comparison.period) }}</th>
             <th scope="col" class="numeric">Variazione</th>
-            <th scope="col" class="numeric">Variazione %</th>
           </tr>
         </thead>
         <tbody>
@@ -58,9 +57,12 @@
                   —
                 }
               </td>
-              <td class="numeric">{{ signedEuros(item.deltaCents) }}</td>
-              <td class="numeric">
-                {{ item.deltaPercent === null ? '—' : signedPercent(item.deltaPercent) }}
+              <!-- Due misure in una cella: l'importo, e sotto la percentuale in grigio. -->
+              <td class="numeric change">
+                <span class="amount">{{ signedEuros(item.deltaCents) }}</span>
+                <span class="percent">
+                  {{ item.deltaPercent === null ? '—' : signedPercent(item.deltaPercent) }}
+                </span>
               </td>
             </tr>
           }

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { foldSearchText } from '../../shared/text.js';
 
 /**
  * Modello di dominio dei cedolini.
@@ -112,12 +113,7 @@ export function itemKey(item: Pick<PayslipItem, 'code' | 'description'>): string
 
 /** Minuscolo, senza accenti, senza punteggiatura, con spazi singoli. */
 export function normalizeDescription(description: string): string {
-  return description
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '')
-    .replace(/[^\p{L}\p{N}]+/gu, ' ')
-    .trim();
+  return foldSearchText(description).replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 }
 
 /** Un importo in centesimi entro limiti che un cedolino non può superare. */
@@ -206,11 +202,9 @@ export const newPayslipSchema = z.object({
   replaceExisting: z.boolean().optional().default(false),
   ...payslipDataShape,
 });
-export type NewPayslipInput = z.infer<typeof newPayslipSchema>;
 
 /** Correzione di un cedolino già confermato: si indica solo ciò che cambia. */
 export const payslipUpdateSchema = z
   .object(payslipDataShape)
   .partial()
   .refine((patch) => Object.keys(patch).length > 0, { error: 'Nessuna modifica indicata.' });
-export type PayslipUpdateInput = z.infer<typeof payslipUpdateSchema>;

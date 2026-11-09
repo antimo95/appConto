@@ -84,6 +84,23 @@ export class PayslipsPage {
   /** I mesi già in archivio: la revisione li usa per riconoscere un conflitto sul mese digitato. */
   protected readonly takenPeriods = computed(() => this.items().map((item) => item.period));
 
+  /**
+   * Il sottotitolo dice cosa c'è in archivio; finché è vuoto spiega il flusso.
+   * L'elenco arriva dal più recente, quindi il primo è l'ultimo mese.
+   */
+  protected readonly headerText = computed(() => {
+    const items = this.items();
+    if (items.length === 0) {
+      return 'Carica il PDF, verifica i valori estratti e confronta un mese con il precedente.';
+    }
+    if (items.length === 1) {
+      return `1 cedolino in archivio: ${formatMonth(items[0].period)}.`;
+    }
+    const first = formatMonth(items[items.length - 1].period);
+    const last = formatMonth(items[0].period);
+    return `${String(items.length)} cedolini in archivio, da ${first} a ${last}.`;
+  });
+
   /** Il mese dell'URL, o il più recente se manca o non esiste più. */
   protected readonly selected = computed<PayslipSummary | null>(() => {
     const items = this.items();
@@ -253,7 +270,9 @@ export class PayslipsPage {
       return 'Il file scelto non è un PDF.';
     }
 
-    return file.size > MAX_PAYSLIP_BYTES ? 'Il file supera il limite di 10 MB.' : null;
+    return file.size > MAX_PAYSLIP_BYTES
+      ? `Il file supera il limite di ${String(MAX_PAYSLIP_BYTES / 1024 / 1024)} MB.`
+      : null;
   }
 
   protected confirmNew(result: ReviewResult): void {
@@ -346,6 +365,10 @@ export class PayslipsPage {
   }
 
   protected select(period: string): void {
+    // Un altro mese chiude la modifica: il modulo non deve passare a un cedolino diverso.
+    if (period !== this.selected()?.period) {
+      this.editing.set(false);
+    }
     void this.router.navigate([], { relativeTo: this.route, queryParams: { period } });
   }
 

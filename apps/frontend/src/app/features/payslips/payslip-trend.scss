@@ -13,31 +13,57 @@
   overflow-x: auto;
 }
 
-/* La misura minima mantiene gli assi leggibili; su schermi stretti scorre il grafico, non la pagina. */
+/* Sul telefono il grafico sta nella colonna: Chart.js dirada da sé le etichette dei mesi. */
 .plot {
-  min-width: 30rem;
+  min-width: min(30rem, 100%);
   height: 16.25rem;
 }
 
-.legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-6);
-  margin: var(--space-5) 0 0;
-  padding: 0;
-  list-style: none;
-  @include typography.text('secondary');
+/* Etichetta a sinistra, importo a destra, sulla stessa riga: come le righe di una tabella. */
+.tooltip-body {
+  dl {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0;
+  }
 
-  li {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-3);
+  div {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-6);
+  }
+
+  dt {
+    color: var(--color-text-secondary);
+  }
+
+  dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
   }
 }
 
-/* Il segno della serie è un tratto, come la linea che identifica. */
-.key {
-  display: inline-block;
-  width: 0.875rem;
-  height: 2px;
+.missing {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+.open {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-primary);
+  font: inherit;
+  @include typography.text('caption');
+  cursor: pointer;
+  text-align: left;
+
+  &:hover {
+    text-decoration: underline;
+  }
+
+  &:focus-visible {
+    box-shadow: 0 0 0 var(--space-1) var(--color-focus-ring);
+    outline: none;
+  }
 }

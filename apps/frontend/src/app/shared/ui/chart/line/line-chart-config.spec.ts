@@ -3,12 +3,13 @@ import { formatAmount } from '../../../../core/format';
 import { lineChartData, lineChartOptions, lineChartValueRange } from './line-chart-config';
 import { LINE_CHART_GEOMETRY, type LineChartTheme } from './line-chart-theme';
 import type { LinePointMarker, LineSeries } from './line-chart.model';
-import { niceScale } from '@shared/ui/chart/core/value-scale';
+import { fittedScale, niceScale } from '@shared/ui/chart/core/value-scale';
 
 interface Point {
   label: string;
   a: number;
   b: number;
+  c?: number | null;
   partial?: boolean;
 }
 
@@ -104,9 +105,51 @@ describe('lineChartData', () => {
   });
 });
 
+describe('lineChartData: punti senza dato', () => {
+  const GAPPY: readonly LineSeries<Point>[] = [
+    { key: 'c', label: 'Netto', color: 'chart-1', value: (p) => p.c ?? null },
+  ];
+  const rows: Point[] = [
+    { label: 'g', a: 0, b: 0, c: 1638 },
+    { label: 'f', a: 0, b: 0, c: null },
+    { label: 'm', a: 0, b: 0, c: 1818 },
+  ];
+
+  it('un null passa tale e quale al dataset e non viene disegnato come zero', () => {
+    const { datasets } = lineChartData(rows, GAPPY, marker, xLabel, THEME);
+
+    expect(datasets[0]?.data).toEqual([1638, null, 1818]);
+    expect(datasets[0]?.spanGaps).toBeFalsy();
+  });
+
+  it('il punto senza dato non ha marcatore', () => {
+    const { datasets } = lineChartData(rows, GAPPY, marker, xLabel, THEME);
+
+    expect(datasets[0]?.pointRadius).toEqual([3, 0, 3]);
+  });
+
+  it('oltre la soglia dei marcatori, un punto isolato fra due buchi resta visibile', () => {
+    // Senza vicini non c'è segmento: senza marcatore il dato sparirebbe dal grafico.
+    const many: Point[] = Array.from({ length: 30 }, (_, i) => ({
+      label: String(i),
+      a: 0,
+      b: 0,
+      c: i === 14 ? 1700 : i === 13 || i === 15 ? null : 1600
+    }));
+    const radius = lineChartData(many, GAPPY, marker, xLabel, THEME).datasets[0]?.pointRadius as number[];
+
+    expect(radius[14]).toBe(3);
+    expect(radius[5]).toBe(0);
+  });
+});
+
 describe('lineChartValueRange', () => {
   it('applica la scala dell’asse ai valori', () => {
     expect(lineChartValueRange('amount', [120, 480])).toEqual(niceScale([120, 480]));
+  });
+
+  it('l’asse amount-fit usa la scala che non forza lo zero', () => {
+    expect(lineChartValueRange('amount-fit', [1638, 1818])).toEqual(fittedScale([1638, 1818]));
   });
 });
 
@@ -131,6 +174,19 @@ describe('lineChartOptions', () => {
     expect(callback?.call({} as never, 1_234_567, 0, [])).toBe('1,2M €');
     expect(callback?.call({} as never, 1_234_567_890, 0, [])).toBe('1,2B €');
     expect(callback?.call({} as never, -1234.5, 0, [])).toBe('-1,2k €');
+  });
+
+  it('amount-fit scrive gli euro interi con il separatore delle migliaia, senza la k', () => {
+    const range = lineChartValueRange('amount-fit', [1638, 1818]);
+    const y = lineChartOptions(THEME, 'amount-fit', range, guides).scales?.['y'];
+    const callback = y?.ticks?.callback;
+    const nbsp = ' ';
+
+    expect(y).toMatchObject({ min: range.min, max: range.max });
+    expect(callback?.call({} as never, 1650, 0, [])).toBe(`1.650${nbsp}€`);
+    expect(callback?.call({} as never, 1700, 0, [])).toBe(`1.700${nbsp}€`);
+    expect(callback?.call({} as never, 0, 0, [])).toBe(`0${nbsp}€`);
+    expect(callback?.call({} as never, -200, 0, [])).toBe(`-200${nbsp}€`);
   });
 
   it('l’asse Y non scende molto sotto i dati: niente -5000 per un minimo di -69', () => {

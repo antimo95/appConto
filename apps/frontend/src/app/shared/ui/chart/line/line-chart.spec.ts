@@ -332,6 +332,19 @@ describe('LineChart', () => {
     expect(yRange().max).toBeGreaterThan(initial.max);
   });
 
+  it('un punto senza dato lascia un buco e la scala si calcola solo sui numeri', async () => {
+    await render();
+    fixture.componentInstance.series.set([
+      { ...SERIES_A, value: (row) => (row.day === '02' ? null : row.a + 1000) }
+    ]);
+    await fixture.whenStable();
+
+    expect(chart().data.datasets[0].data).toEqual([1010, null, 1030, 1040]);
+    const { min, max } = chart().options.scales.y;
+    expect(min).toBe(0);
+    expect(max).toBeGreaterThanOrEqual(1040);
+  });
+
   it('la linea dello zero è spenta di partenza; `zeroLine` la passa al plugin delle guide', async () => {
     await render();
     expect(guides().zero).toBeUndefined();

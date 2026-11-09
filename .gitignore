@@ -24,8 +24,14 @@ apps/backend/data/
 
 .superpowers/
 
+# Cedolini veri usati per provare il parser in locale: dati personali, mai nel repository
+/samples/*.pdf
+
 # Playwright (test end-to-end): risultati, report e tracce
 /test-results/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# taste-skill: schermate e report del controllo grafico (locali)
+/.taste-skill/

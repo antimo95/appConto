@@ -3,20 +3,52 @@
 } @else {
   <div class="chart">
     <div class="plot">
+      <!-- Il riquadro è proiettato dentro il grafico: si posiziona rispetto all'host di `<app-line-chart>`. -->
       <app-line-chart
-        [points]="trend()"
+        [points]="points()"
         [series]="series"
         [xLabel]="xLabel"
-        ariaLabel="Andamento mensile di netto, competenze e trattenute"
-      />
+        [marker]="marker"
+        valueAxis="amount-fit"
+        ariaLabel="Andamento mensile del netto"
+        [selectedIndex]="opened()"
+        (selectedIndexChange)="opened.set($event)"
+      >
+        @if (openedPoint(); as point) {
+          <app-chart-tooltip
+            [title]="formatMonth(point.period)"
+            [left]="tooltipPosition().left"
+            [side]="tooltipPosition().side"
+            (dismiss)="opened.set(null)"
+          >
+            <div chartTooltipContent class="tooltip-body">
+              @if (point.payslip; as payslip) {
+                <dl>
+                  <div>
+                    <dt>Netto</dt>
+                    <dd><app-amount [value]="euros(payslip.netCents)" tone="neutral" /></dd>
+                  </div>
+                  <div>
+                    <dt>Competenze</dt>
+                    <dd><app-amount [value]="euros(payslip.totalEarningsCents)" tone="neutral" /></dd>
+                  </div>
+                  <div>
+                    <dt>Trattenute</dt>
+                    <dd><app-amount [value]="euros(payslip.totalDeductionsCents)" tone="neutral" /></dd>
+                  </div>
+                </dl>
+              } @else {
+                <p class="missing">Nessun cedolino per questo mese.</p>
+              }
+            </div>
+            @if (point.payslip) {
+              <button chartTooltipFooter type="button" class="open" (click)="open(point)">
+                Apri il mese
+              </button>
+            }
+          </app-chart-tooltip>
+        }
+      </app-line-chart>
     </div>
   </div>
-  <ul class="legend">
-    @for (item of series; track item.key) {
-      <li>
-        <span class="key" [style.background]="chartColor(item.color)" aria-hidden="true"></span>
-        {{ item.label }}
-      </li>
-    }
-  </ul>
 }

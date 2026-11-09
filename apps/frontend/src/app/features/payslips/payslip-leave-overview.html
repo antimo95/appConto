@@ -1,36 +1,69 @@
-<section>
+<p class="coverage">
   @if (overview().coverage.from !== null && overview().coverage.to !== null) {
-    <p>
-      Periodo coperto: {{ formatMonth(overview().coverage.from!) }} –
-      {{ formatMonth(overview().coverage.to!) }}
-    </p>
+    Periodo coperto: {{ formatMonth(overview().coverage.from!) }} –
+    {{ formatMonth(overview().coverage.to!) }} ·
   }
-  <p>{{ overview().coverage.payslipCount }} cedolini nel periodo</p>
-  @if (overview().coverage.missingPeriods.length > 0) {
-    <p class="missing">Mesi mancanti: {{ missingText() }}</p>
-  }
-</section>
+  {{ overview().coverage.payslipCount }}
+  {{ overview().coverage.payslipCount === 1 ? 'cedolino' : 'cedolini' }} nel periodo
+</p>
+@if (overview().coverage.missingPeriods.length > 0) {
+  <p class="missing">Mesi mancanti: {{ missingText() }}</p>
+}
 
+<!-- Prima di tutto ciò che chiede un intervento: un residuo che non torna. -->
+@if (overview().anomalies.length > 0) {
+  <section class="anomalies">
+    <h3 class="title">Residui che non tornano</h3>
+    <ul>
+      @for (a of overview().anomalies; track a.type + a.payslipId) {
+        <li>
+          <p>
+            <strong>{{ formatMonth(a.period) }}</strong> · {{ labels[a.type] }}: atteso
+            {{ quantity(a.expectedRemaining) }}, rilevato {{ quantity(a.observedRemaining) }},
+            differenza {{ signed(a.difference) }}
+          </p>
+          <p class="reason">{{ a.reason }}</p>
+          <button type="button" class="go" (click)="selectPeriod.emit(a.period)">
+            Vai al cedolino
+          </button>
+        </li>
+      }
+    </ul>
+  </section>
+}
+
+<div class="types">
 @for (type of overview().types; track type.type) {
-  <section>
+  <section class="type">
     <div class="type-header">
-      <p class="title">{{ labels[type.type] }}</p>
+      <h3 class="title">{{ labels[type.type] }}</h3>
       <app-badge [label]="statusLabels[type.status]" [tone]="statusTones[type.status]" />
     </div>
-    <p>
-      Ultimo residuo
-      @if (type.latest; as latest) {
-        ({{ formatMonth(latest.period) }}):
-      }
-      <strong>{{ latestText(type) }}</strong>
+    <!--
+      Lo spazio dentro <strong> non è casuale: Angular toglie gli spazi fra
+      elementi, e senza questo il testo diventerebbe «Coerente46 ore».
+    -->
+    <p class="latest">
+      <strong class="figure">
+        {{ latestText(type) }}
+      </strong>
+      <span>
+        ultimo residuo
+        @if (type.latest; as latest) {
+          ({{ formatMonth(latest.period) }})
+        }
+      </span>
     </p>
     @for (total of type.yearTotals; track total.year) {
-      <p>
+      <p class="totals">
         {{ total.year }}, fino a {{ formatMonth(total.period) }}: maturato
         {{ quantity(total.accrued) }}, goduto {{ quantity(total.used) }}
       </p>
     }
-    <div class="scroller">
+    <!-- La cronologia è la prova del conto, non la risposta: si apre a richiesta. -->
+    <details class="history">
+      <summary>Cronologia mese per mese</summary>
+      <div class="scroller">
       <table [attr.aria-label]="'Cronologia ' + labels[type.type]">
         <thead>
           <tr>
@@ -50,43 +83,24 @@
               </td>
               <td class="numeric">{{ quantity(o.accrued) }}</td>
               <td class="numeric">{{ quantity(o.used) }}</td>
-              <td class="numeric">{{ quantity(o.remaining) }}</td>
+              <td class="numeric remaining">{{ quantity(o.remaining) }}</td>
             </tr>
           }
         </tbody>
       </table>
-    </div>
+      </div>
+    </details>
   </section>
 }
-
-@if (overview().anomalies.length > 0) {
-  <section class="anomalies">
-    <p class="title">Residui che non tornano</p>
-    <ul>
-      @for (a of overview().anomalies; track a.type + a.payslipId) {
-        <li>
-          <p>
-            <strong>{{ formatMonth(a.period) }}</strong> · {{ labels[a.type] }}: atteso
-            {{ quantity(a.expectedRemaining) }}, rilevato {{ quantity(a.observedRemaining) }},
-            differenza {{ signed(a.difference) }}
-          </p>
-          <p>{{ a.reason }}</p>
-          <button type="button" class="go" (click)="selectPeriod.emit(a.period)">
-            Vai al cedolino
-          </button>
-        </li>
-      }
-    </ul>
-  </section>
-}
+</div>
 
 @if (overview().limitations.length > 0) {
-  <section>
-    <p class="title">Limiti della verifica</p>
+  <details class="limits">
+    <summary>Limiti della verifica</summary>
     <ul>
       @for (limitation of overview().limitations; track $index) {
         <li>{{ limitation }}</li>
       }
     </ul>
-  </section>
+  </details>
 }

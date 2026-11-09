@@ -136,12 +136,3 @@ usare `npm run test:payslips:e2e`, che compila prima di lanciare i test.
 **Un test fallisce.** Il report HTML (`npx playwright show-report`) contiene
 screenshot e traccia del test; le righe `[WebServer]` nel terminale sono gli
 errori del backend.
-
-## Difetti noti
-
-- Il test e2e «3-bis. il datore di lavoro viene estratto dal PDF» è marcato
-  `test.fail`: estraendo il testo dal PDF, `pdfjs-dist` fonde le etichette
-  «Codice azienda» e «Ragione sociale» in un solo elemento, e il lettore
-  (`textBelow` in `zucchetti-lul.parser.ts`) non trova più il valore sotto
-  «Ragione sociale». Quando il difetto sarà corretto il test segnalerà un
-  «passaggio inatteso»: va tolto `test.fail`.

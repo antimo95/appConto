@@ -175,6 +175,38 @@ describe('etichette fuse dall\'estrazione del testo', () => {
     assert.equal(draft.employer, 'Esempio Lavoro S.r.l.');
     assert.equal(draft.period, '2026-10');
   });
+
+  it('il totale competenze si legge anche se la sua etichetta è fusa con altro testo', () => {
+    const result = extract(replacing('TOTALEsCOMPETENZE', 'Foo TOTALEsCOMPETENZE'));
+
+    assert.equal(result.draft.totalEarningsCents, extract().draft.totalEarningsCents);
+    assert.equal(result.draft.totalEarningsCents, 218000);
+  });
+
+  it('il formato si riconosce anche se l\'etichetta del netto è fusa con altro testo', () => {
+    const edit = replacing('NETTOsDELsMESE', 'Foo NETTOsDELsMESE');
+
+    assert.equal(zucchettiLulParser.canParse(syntheticPayslipDocument({ edit })), true);
+    assert.equal(extract(edit).draft.netCents, 169800);
+  });
+});
+
+describe('voci con parole di sezione nella descrizione', () => {
+  const total = extract().draft.items.length;
+
+  it('"conguaglio" dentro una descrizione non chiude l\'elenco delle voci', () => {
+    const { items } = extract(replacing('F03020 Ritenute IRPEF', 'F03020 Ritenute IRPEF conguaglio')).draft;
+
+    assert.equal(items.length, total);
+    assert.equal(items.find((item) => item.code === 'F03020')?.amountCents, 28896);
+  });
+
+  it('"Ratei" dentro una descrizione non chiude l\'elenco delle voci', () => {
+    const { items } = extract(replacing('Z00000 Contributo IVS', 'Z00000 Ratei IVS')).draft;
+
+    assert.equal(items.length, total);
+    assert.equal(items.find((item) => item.code === 'Z00000')?.amountCents, 19299);
+  });
 });
 
 describe('dati mancanti o ambigui', () => {

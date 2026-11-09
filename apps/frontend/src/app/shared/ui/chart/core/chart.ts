@@ -69,7 +69,8 @@ export interface ChartDataPoint {
 })
 export class AppChart<TType extends AppChartType> implements AfterViewInit, OnDestroy {
   readonly type = input.required<TType>();
-  readonly data = input.required<ChartData<TType, number[], string>>();
+  // `null` è un punto senza dato: Chart.js lascia un buco nella linea.
+  readonly data = input.required<ChartData<TType, (number | null)[], string>>();
   // Le opzioni di Chart.js sono tutte facoltative, ma con `TType` ancora aperto
   // TypeScript non riesce a dimostrare che `{}` le soddisfi per ogni tipo.
   readonly options = input<ChartOptionsWithoutInteractionCallbacks<TType>>(
@@ -90,10 +91,10 @@ export class AppChart<TType extends AppChartType> implements AfterViewInit, OnDe
   @ViewChild('canvas') private canvas?: ElementRef<HTMLCanvasElement>;
 
   private readonly chartConstructor = inject(CHART_CONSTRUCTOR);
-  private chart?: ChartJS<TType, number[], string>;
+  private chart?: ChartJS<TType, (number | null)[], string>;
   private configuredType?: TType;
   private configuredPlugins?: readonly Plugin<TType>[];
-  private appliedData?: ChartData<TType, number[], string>;
+  private appliedData?: ChartData<TType, (number | null)[], string>;
   private appliedOptions?: ChartOptionsWithoutInteractionCallbacks<TType>;
 
   constructor() {
@@ -138,7 +139,7 @@ export class AppChart<TType extends AppChartType> implements AfterViewInit, OnDe
 
   private updateChart(
     type: TType,
-    data: ChartData<TType, number[], string>,
+    data: ChartData<TType, (number | null)[], string>,
     options: ChartOptionsWithoutInteractionCallbacks<TType>,
     plugins: readonly Plugin<TType>[],
     activeElements: readonly ChartDataPoint[]

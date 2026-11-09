@@ -1,9 +1,7 @@
 <app-page-layout>
   <app-panel>
-    <app-section-header
-      title="Cedolini"
-      subtitle="Carica il PDF, verifica i valori estratti e confronta un mese con il precedente."
-    >
+    <!-- «Cedolini» è già il titolo della pagina: qui si dice cosa c'è in archivio. -->
+    <app-section-header title="Archivio" [subtitle]="headerText()">
       <div panelActions>
         <button
           type="button"
@@ -54,44 +52,7 @@
         </div>
       </app-panel>
     } @else {
-      <app-panel>
-        <app-section-header title="Cedolini importati" />
-        <div class="scroller">
-          <table class="payslips">
-            <thead>
-              <tr>
-                <th scope="col">Mese</th>
-                <th scope="col" class="numeric">Netto</th>
-                <th scope="col" class="numeric">Competenze</th>
-                <th scope="col" class="numeric">Trattenute</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (item of items(); track item.id) {
-                <tr [class.selected]="item.id === selected()?.id" (click)="select(item.period)">
-                  <td>
-                    <button
-                      type="button"
-                      class="month"
-                      [attr.aria-current]="item.id === selected()?.id ? 'true' : null"
-                    >
-                      {{ formatMonth(item.period) }}
-                    </button>
-                  </td>
-                  <td class="numeric"><app-amount [value]="euros(item.netCents)" tone="neutral" /></td>
-                  <td class="numeric">
-                    <app-amount [value]="euros(item.totalEarningsCents)" tone="neutral" />
-                  </td>
-                  <td class="numeric">
-                    <app-amount [value]="euros(item.totalDeductionsCents)" tone="neutral" />
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-      </app-panel>
-
+      <!-- Il riepilogo dell'anno viene prima di tutto: è la sintesi che si cerca aprendo la pagina. -->
       @if (summaries.hasValue() && summaries.value().leave; as leave) {
         <app-panel>
           <app-section-header title="Riepilogo ferie e permessi" />
@@ -99,16 +60,60 @@
         </app-panel>
       }
 
+      <!--
+        Due colonne: a sinistra l'elenco dei mesi, a destra il mese scelto.
+        Sotto gli 80rem le colonne si impilano.
+      -->
+      <div class="workspace">
+        <div class="year-column">
+          <app-panel>
+            <app-section-header title="Cedolini importati" />
+            <div class="scroller">
+              <table class="payslips">
+                <thead>
+                  <tr>
+                    <th scope="col">Mese</th>
+                    <th scope="col" class="numeric">Netto</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (item of items(); track item.id) {
+                    <tr [class.selected]="item.id === selected()?.id" (click)="select(item.period)">
+                      <td>
+                        <button
+                          type="button"
+                          class="month"
+                          [attr.aria-current]="item.id === selected()?.id ? 'true' : null"
+                        >
+                          {{ formatMonth(item.period) }}
+                        </button>
+                      </td>
+                      <td class="numeric">
+                        <app-amount [value]="euros(item.netCents)" tone="neutral" />
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </app-panel>
+        </div>
+
       @if (selected(); as selected) {
+        <div class="month-column">
         <app-panel>
           <app-section-header [title]="formatMonth(selected.period)" />
           <app-stat-card-grid [items]="kpis()" />
         </app-panel>
 
         <app-panel>
-          <app-section-header title="Andamento mensile" />
+          <app-section-header title="Andamento del netto" />
           @if (summaries.hasValue()) {
-            <app-payslip-trend [trend]="summaries.value().trend" />
+            <app-payslip-trend
+              [trend]="summaries.value().trend"
+              [selectedPeriod]="selected.period"
+              (selectPeriod)="select($event)"
+            />
           } @else if (summariesError(); as message) {
             <app-error-retry [message]="message" (retry)="summaries.reload()" />
           } @else {
@@ -151,7 +156,9 @@
             <p class="message">Caricamento in corso…</p>
           }
         </app-panel>
+        </div>
       }
+      </div>
     }
   } @else if (listError(); as message) {
     <app-panel>

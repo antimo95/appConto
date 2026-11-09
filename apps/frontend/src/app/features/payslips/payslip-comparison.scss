@@ -56,9 +56,32 @@
 }
 
 .changes {
-  min-width: 46rem;
+  min-width: 34rem;
+  font-variant-numeric: tabular-nums;
 
   td app-badge {
     margin-left: var(--space-3);
+  }
+
+  /* I mesi come intestazione: il confronto dice contro cosa misura. */
+  .month-head {
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  .change {
+    .amount,
+    .percent {
+      display: block;
+    }
+
+    .amount {
+      color: var(--color-text-primary);
+    }
+
+    .percent {
+      margin-top: var(--space-1);
+      @include typography.text('caption');
+    }
   }
 }

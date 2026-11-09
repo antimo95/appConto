@@ -33,9 +33,21 @@
   margin-top: var(--space-7);
 }
 
+/* Un link, non un'azione: inchiostro pieno e sottolineato, leggibile in entrambi i temi. */
 .document {
-  color: var(--color-primary);
+  color: var(--color-text-primary);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
   @include typography.text('body');
+
+  &:hover {
+    color: var(--color-primary-hover);
+  }
+}
+
+.items,
+.leaves {
+  font-variant-numeric: tabular-nums;
 }
 
 h3 {

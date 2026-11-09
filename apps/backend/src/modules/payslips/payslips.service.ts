@@ -165,9 +165,10 @@ export function createPayslipsService(deps: PayslipsServiceDeps) {
 
       const id = randomUUID();
       const expiresAt = now + ANALYSIS_TTL_MS;
+      const cleanedName = cleanFileName(fileName);
       analyses.save({
         id,
-        fileName: cleanFileName(fileName),
+        fileName: cleanedName,
         sha256: hash,
         bytes: document,
         extraction,
@@ -179,7 +180,7 @@ export function createPayslipsService(deps: PayslipsServiceDeps) {
 
       return {
         id,
-        fileName: cleanFileName(fileName),
+        fileName: cleanedName,
         parserId: extraction.parserId,
         status: extraction.status,
         confidence: extraction.confidence,

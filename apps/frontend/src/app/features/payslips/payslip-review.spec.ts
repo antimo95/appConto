@@ -125,6 +125,19 @@ describe('PayslipReview', () => {
     expect(confirmButton().disabled).toBe(true);
   });
 
+  it('una quantità non numerica in una voce mostra il messaggio e blocca la conferma', async () => {
+    await render();
+
+    const quantity = host().querySelector<HTMLInputElement>(
+      'input[aria-label="Quantità della voce 1"]'
+    )!;
+    await type(quantity, 'abc');
+
+    expect(quantity.getAttribute('aria-invalid')).toBe('true');
+    expect(host().querySelector('table.items tbody tr .field-error')?.textContent).toBeTruthy();
+    expect(confirmButton().disabled).toBe(true);
+  });
+
   it('con un conflitto la conferma richiede di sostituire il cedolino esistente', async () => {
     await render(draft(), analysis({ conflict: { payslipId: 'p-9', period: '2026-09' } }));
 
@@ -356,6 +369,135 @@ describe('PayslipReview', () => {
     expect(data.items[0].description).toBe('Retribuzione corretta');
     expect(data.items[0].amountCents).toBe(123456);
     expect(Number.isInteger(data.items[0].amountCents)).toBe(true);
+  });
+
+  it('un mese scritto a metà mostra «non valido», non «obbligatorio»', async () => {
+    // Il campo month di jsdom svuota da sé i valori malformati: il testo storto arriva dalla bozza.
+    await render(draft({ period: '2026-13' }));
+
+    expect(host().querySelector('#payslip-error-period')?.textContent).toContain(
+      'Valore non valido.'
+    );
+    expect(confirmButton().disabled).toBe(true);
+
+    // «Obbligatorio» resta per il campo davvero vuoto.
+    await render(draft({ period: null }));
+    expect(host().querySelector('#payslip-error-period')?.textContent).toContain(
+      'Valore obbligatorio.'
+    );
+  });
+
+  it('un totale competenze negativo mostra l\'errore e blocca la conferma', async () => {
+    await render();
+
+    await type(field('totalEarnings'), '-100');
+
+    expect(host().querySelector('#payslip-error-totalEarnings')?.textContent).toContain(
+      'Il totale non può essere negativo.'
+    );
+    expect(confirmButton().disabled).toBe(true);
+
+    await type(field('totalDeductions'), '-1');
+    expect(host().querySelector('#payslip-error-totalDeductions')?.textContent).toContain(
+      'Il totale non può essere negativo.'
+    );
+  });
+
+  it('un importo o un valore decimale fuori scala blocca la conferma', async () => {
+    await render();
+
+    await type(field('net'), '100.000.001');
+    expect(host().querySelector('#payslip-error-net')?.textContent).toContain('Valore fuori scala.');
+    expect(confirmButton().disabled).toBe(true);
+
+    await type(field('net'), '2.000,00');
+    expect(confirmButton().disabled).toBe(false);
+
+    await type(field('workedHours'), '1000001');
+    expect(host().querySelector('#payslip-error-workedHours')?.textContent).toContain(
+      'Valore fuori scala.'
+    );
+    expect(confirmButton().disabled).toBe(true);
+
+    await type(field('workedHours'), '168');
+    const quantity = host().querySelector<HTMLInputElement>(
+      'input[aria-label="Quantità della voce 1"]'
+    )!;
+    await type(quantity, '-1000001');
+    expect(host().querySelector('table.items tbody tr .field-error')?.textContent).toContain(
+      'Valore fuori scala.'
+    );
+    expect(confirmButton().disabled).toBe(true);
+
+    await type(quantity, '26');
+    const accrued = host().querySelector<HTMLInputElement>(
+      'input[aria-label="Maturato del saldo 1"]'
+    )!;
+    await type(accrued, '1000001');
+    expect(host().querySelector('table.leaves tbody tr .field-error')?.textContent).toContain(
+      'Valore fuori scala.'
+    );
+    expect(confirmButton().disabled).toBe(true);
+  });
+
+  it('un codice voce con spazi o troppo lungo mostra «Codice voce non valido.»', async () => {
+    await render();
+    const code = host().querySelector<HTMLInputElement>('input[aria-label="Codice della voce 1"]')!;
+
+    await type(code, 'A B');
+    expect(host().querySelector('table.items tbody tr .field-error')?.textContent).toContain(
+      'Codice voce non valido.'
+    );
+    expect(confirmButton().disabled).toBe(true);
+
+    await type(code, 'A'.repeat(17));
+    expect(confirmButton().disabled).toBe(true);
+
+    // Il codice è facoltativo, e questi caratteri sono ammessi.
+    await type(code, 'AB.12/3_x-y');
+    expect(confirmButton().disabled).toBe(false);
+    await type(code, '');
+    expect(confirmButton().disabled).toBe(false);
+  });
+
+  it('i testi troppo lunghi bloccano la conferma e mostrano il messaggio', async () => {
+    await render();
+    const itemUnit = host().querySelector<HTMLInputElement>('input[aria-label="Unità della voce 1"]')!;
+    const leaveUnit = host().querySelector<HTMLInputElement>(
+      'input[aria-label="Unità del saldo 1"]'
+    )!;
+    const description = host().querySelector<HTMLInputElement>(
+      'input[aria-label="Descrizione della voce 1"]'
+    )!;
+
+    await type(itemUnit, 'x'.repeat(13));
+    expect(host().querySelector('table.items tbody tr .field-error')?.textContent).toContain(
+      'Testo troppo lungo (massimo 12 caratteri).'
+    );
+    expect(confirmButton().disabled).toBe(true);
+    await type(itemUnit, 'x'.repeat(12));
+    expect(confirmButton().disabled).toBe(false);
+
+    await type(leaveUnit, 'x'.repeat(13));
+    expect(host().querySelector('table.leaves tbody tr .field-error')?.textContent).toContain(
+      'Testo troppo lungo (massimo 12 caratteri).'
+    );
+    expect(confirmButton().disabled).toBe(true);
+    await type(leaveUnit, 'ore');
+
+    await type(description, 'd'.repeat(201));
+    expect(host().querySelector('table.items tbody tr .field-error')?.textContent).toContain(
+      'Testo troppo lungo (massimo 200 caratteri).'
+    );
+    expect(confirmButton().disabled).toBe(true);
+    await type(description, 'd'.repeat(200));
+    expect(confirmButton().disabled).toBe(false);
+
+    await type(field('employer'), 'e'.repeat(201));
+    expect(host().querySelector('#payslip-error-employer')?.textContent).toContain(
+      'Testo troppo lungo (massimo 200 caratteri).'
+    );
+    expect(confirmButton().disabled).toBe(true);
   });
 
   it('annulla sempre, anche con il form non valido', async () => {

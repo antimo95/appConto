@@ -4,7 +4,7 @@ import type { ChartOptionsWithoutInteractionCallbacks } from '@shared/ui/chart/c
 import { LINE_CHART_GEOMETRY, type LineChartFont, type LineChartTheme } from './line-chart-theme';
 import type { LineChartValueAxis, LinePointMarker, LineSeries } from './line-chart.model';
 import type { LineGuidesState } from './line-guides-plugin';
-import { niceScale } from '@shared/ui/chart/core/value-scale';
+import { fittedScale, niceScale } from '@shared/ui/chart/core/value-scale';
 
 /**
  * Formato e scala dell'asse Y stanno insieme, così non si possono
@@ -12,10 +12,25 @@ import { niceScale } from '@shared/ui/chart/core/value-scale';
  */
 const VALUE_AXES = {
   amount: { format: formatCompactAmount, scale: niceScale },
+  'amount-fit': { format: formatWholeAmount, scale: fittedScale },
 } satisfies Record<
   LineChartValueAxis,
   { format: (value: number) => string; scale: (values: readonly number[]) => { min: number; max: number; ticks: readonly number[] } }
 >;
+
+// `useGrouping: true` forza il separatore: in it-IT di norma i numeri a quattro cifre non l'hanno, ma su un asse stretto
+// 1.650 e 1.700 devono leggersi per intero.
+const wholeAmount = new Intl.NumberFormat('it-IT', {
+  style: 'currency',
+  currency: 'EUR',
+  maximumFractionDigits: 0,
+  useGrouping: true,
+});
+
+/** Euro interi, senza compattare: la `k` farebbe leggere 1.650 e 1.700 entrambi `1,7k €`. */
+function formatWholeAmount(value: number): string {
+  return wholeAmount.format(value);
+}
 
 const compactNumber = new Intl.NumberFormat('it-IT', { maximumFractionDigits: 1 });
 
@@ -52,27 +67,37 @@ export function lineChartData<T>(
   marker: (point: T) => LinePointMarker,
   xLabel: (point: T) => string,
   theme: LineChartTheme,
-): ChartData<'line', number[], string> {
+): ChartData<'line', (number | null)[], string> {
   const geometry = LINE_CHART_GEOMETRY;
 
   const datasets = series.map((item) => {
     const color = theme.series[item.color];
+    const values = points.map((point) => item.value(point));
+    // Fra due buchi non c'è segmento: senza marcatore il punto non si vedrebbe.
+    const isolated = (index: number): boolean =>
+      (values[index - 1] ?? null) === null && (values[index + 1] ?? null) === null;
 
     return {
       label: item.label,
-      data: points.map((point) => item.value(point)),
+      data: values,
       borderColor: color,
       borderWidth: geometry.lineWidth,
       borderCapStyle: geometry.lineCap,
       borderJoinStyle: geometry.lineJoin,
-      pointRadius: points.map((point, index) =>
-        points.length <= geometry.markersMaxPoints ||
-        marker(point) === 'hollow' ||
-        index === 0 ||
-        index === points.length - 1
+      // Un punto senza dato (`null`) non ha marcatore. `spanGaps` resta spento: la linea si interrompe.
+      pointRadius: points.map((point, index) => {
+        if (values[index] === null) {
+          return 0;
+        }
+
+        return points.length <= geometry.markersMaxPoints ||
+          marker(point) === 'hollow' ||
+          index === 0 ||
+          index === points.length - 1 ||
+          isolated(index)
           ? geometry.pointRadius
-          : 0,
-      ),
+          : 0;
+      }),
       pointHoverRadius: geometry.pointHoverRadius,
       pointBorderWidth: geometry.pointBorderWidth,
       pointBorderColor: color,
@@ -81,7 +106,7 @@ export function lineChartData<T>(
       ),
       tension: geometry.tension,
       fill: false,
-    } satisfies ChartDataset<'line', number[]>;
+    } satisfies ChartDataset<'line', (number | null)[]>;
   });
 
   return { labels: points.map((point) => xLabel(point)), datasets };

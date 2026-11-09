@@ -63,13 +63,14 @@ interface GroupedItem {
  * Le voci riunite per chiave, nell'ordine in cui compaiono.
  *
  * Una stessa voce può comparire su più righe nello stesso mese (due tariffe
- * orarie, per esempio): ai fini del confronto conta la somma.
+ * orarie, per esempio): ai fini del confronto conta la somma. La sezione fa
+ * parte della chiave: lo stesso codice fra competenze e trattenute sono due voci.
  */
 function groupItems(items: readonly PayslipItem[]): Map<string, GroupedItem> {
   const groups = new Map<string, GroupedItem>();
 
   for (const item of items) {
-    const key = itemKey(item);
+    const key = `${item.section}:${itemKey(item)}`;
     const group = groups.get(key);
     if (group === undefined) {
       groups.set(key, {

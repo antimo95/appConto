@@ -1,23 +1,52 @@
+@use '../../shared/styles/typography';
+
 :host {
   display: block;
+  container-type: inline-size;
 }
 
 p,
-ul {
+ul,
+h3 {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-
-section {
-  margin-bottom: var(--space-7);
-  color: var(--color-text-secondary);
+.coverage {
+  @include typography.text('secondary');
 }
 
 .missing {
+  margin-top: var(--space-3);
   color: var(--color-text-primary);
   font-weight: 600;
+}
+
+.title {
+  @include typography.text('section-title');
+}
+
+/* Un tipo per blocco; lo spazio, non una riga, separa Ferie da P.A.R. */
+section {
+  margin-top: var(--space-9);
+}
+
+/* In alto, a tutta larghezza, Ferie e P.A.R. stanno affiancati: si confrontano a colpo d'occhio. */
+.types {
+  display: grid;
+  gap: var(--space-9) var(--space-8);
+  margin-top: var(--space-9);
+
+  section {
+    margin-top: 0;
+  }
+}
+
+@container (width >= 48rem) {
+  .types {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .type-header {
@@ -26,38 +55,81 @@ section {
   gap: var(--space-4);
 }
 
+/* Il residuo è il numero che si cerca: stessa famiglia e peso degli importi. */
+.latest {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-4);
+  @include typography.text('secondary');
+
+  .figure {
+    @include typography.text('display-kpi');
+    color: var(--color-text-primary);
+  }
+}
+
+.totals {
+  margin-top: var(--space-2);
+  @include typography.text('caption');
+}
+
 /* Come le altre tabelle della pagina, ma senza il mixin: pesa meno nel bundle iniziale. */
 .scroller {
+  margin-top: var(--space-6);
   overflow-x: auto;
 }
 
 table {
   width: 100%;
-  min-width: 24rem;
   border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
 }
 
 th,
 td {
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-3);
   border-bottom: var(--border-width) solid var(--color-row-divider);
   text-align: left;
+  white-space: nowrap;
+}
+
+/* Le intestazioni possono andare a capo; i valori e i mesi no. */
+th {
+  @include typography.text('caption');
+  white-space: normal;
+  vertical-align: bottom;
+  border-bottom-color: var(--color-border);
+}
+
+td {
+  @include typography.text('table-text');
+}
+
+/* Il residuo è la colonna che conta: in inchiostro pieno, le altre in secondario. */
+.remaining {
+  color: var(--color-text-primary);
 }
 
 .numeric {
   text-align: right;
 }
 
+/* Il mese è un pulsante che seleziona il cedolino: inchiostro pieno, sottolineato al passaggio. */
 button {
   padding: 0;
   border: 0;
   background: none;
-  color: var(--color-primary);
+  color: var(--color-text-primary);
   font: inherit;
   text-transform: capitalize;
   cursor: pointer;
 
   &:hover {
+    border: 0;
+    background: none;
+    color: var(--color-text-primary);
     text-decoration: underline;
   }
 
@@ -68,19 +140,68 @@ button {
 }
 
 .anomalies li {
-  margin-top: var(--space-3);
-  padding: var(--space-4);
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+  margin-top: var(--space-4);
+  padding: var(--space-5) var(--space-6);
   border: var(--border-width) solid var(--color-border);
   border-left: var(--space-1) solid var(--color-expense);
   border-radius: var(--radius-card);
+  color: var(--color-text-secondary);
+
+  strong {
+    color: var(--color-text-primary);
+  }
+}
+
+.reason {
+  @include typography.text('caption');
 }
 
 .go {
+  margin-top: var(--space-2);
   font-weight: 600;
   text-transform: none;
 }
 
-.title {
-  color: var(--color-text-primary);
-  font-weight: 600;
+/* Le due aperture a richiesta (cronologia e limiti) hanno lo stesso aspetto. */
+.history,
+.limits {
+  summary {
+    width: fit-content;
+    color: var(--color-text-secondary);
+    font-weight: 600;
+    cursor: pointer;
+
+    &:hover {
+      color: var(--color-text-primary);
+    }
+
+    &:focus-visible {
+      box-shadow: 0 0 0 3px var(--color-focus-ring);
+      outline: none;
+    }
+  }
+}
+
+.history {
+  margin-top: var(--space-5);
+  @include typography.text('caption');
+
+  .scroller {
+    margin-top: var(--space-4);
+  }
+}
+
+/* I limiti sono una nota di metodo: si leggono a richiesta, non spingono giù il resto. */
+.limits {
+  margin-top: var(--space-9);
+  @include typography.text('caption');
+
+  ul {
+    display: grid;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+  }
 }

@@ -1,4 +1,4 @@
-import { niceScale } from './value-scale';
+import { fittedScale, niceScale } from './value-scale';
 
 describe('niceScale', () => {
   it('parte sempre da zero: una base diversa esagera le variazioni', () => {
@@ -68,5 +68,66 @@ describe('niceScale', () => {
       expect(tick).toBeGreaterThanOrEqual(min);
       expect(tick).toBeLessThanOrEqual(max);
     }
+  });
+});
+
+describe('fittedScale', () => {
+  it('non forza lo zero e lascia i dati strettamente dentro i tick estremi', () => {
+    const { min, max, ticks } = fittedScale([1638, 1698, 1818]);
+
+    expect(min).toBeLessThanOrEqual(1638);
+    expect(max).toBeGreaterThan(1818);
+    expect(ticks[0]).toBeLessThanOrEqual(1638);
+    expect(ticks.at(-1)).toBeGreaterThan(1818);
+    expect(ticks[0]).toBe(min);
+    expect(ticks.at(-1)).toBe(max);
+    expect(min).toBeGreaterThan(0);
+  });
+
+  it('le linee guida crescono a passo tondo e restano fra 3 e 7', () => {
+    const { ticks } = fittedScale([1638, 1698, 1818]);
+    const passi = ticks.slice(1).map((tick, index) => tick - (ticks[index] ?? 0));
+
+    expect(ticks.length).toBeGreaterThanOrEqual(3);
+    expect(ticks.length).toBeLessThanOrEqual(7);
+    expect(passi.every((passo) => passo > 0)).toBe(true);
+    expect(new Set(passi).size).toBe(1);
+    expect([1, 2, 2.5, 5]).toContain((passi[0] ?? 0) / 10 ** Math.floor(Math.log10(passi[0] ?? 1)));
+  });
+
+  it('un estremo che cade esattamente su un tick allunga l’asse di un passo', () => {
+    const { min, max } = fittedScale([100, 200], 2);
+
+    expect(min).toBeLessThan(100);
+    expect(max).toBeGreaterThan(200);
+  });
+
+  it('con valori tutti uguali l’asse ha almeno tre linee guida attorno al valore', () => {
+    const { min, max, ticks } = fittedScale([1698, 1698]);
+
+    expect(ticks.length).toBeGreaterThanOrEqual(3);
+    expect(min).toBeLessThan(1698);
+    expect(max).toBeGreaterThan(1698);
+  });
+
+  it('un solo valore zero resta una scala con lo zero dentro', () => {
+    const { min, max, ticks } = fittedScale([0, 0]);
+
+    expect(ticks.length).toBeGreaterThanOrEqual(3);
+    expect(min).toBeLessThan(0);
+    expect(max).toBeGreaterThan(0);
+  });
+
+  it('funziona con soli valori negativi', () => {
+    const { min, max, ticks } = fittedScale([-900, -700, -650]);
+
+    expect(min).toBeLessThanOrEqual(-900);
+    expect(max).toBeGreaterThan(-650);
+    expect(ticks.length).toBeGreaterThanOrEqual(3);
+    expect(ticks.slice(1).every((tick, index) => tick > (ticks[index] ?? 0))).toBe(true);
+  });
+
+  it('senza valori è la stessa scala di ripiego di niceScale', () => {
+    expect(fittedScale([])).toEqual({ min: 0, max: 1, ticks: [0, 1] });
   });
 });

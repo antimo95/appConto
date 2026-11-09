@@ -38,7 +38,7 @@ test.describe('Cedolini', () => {
 
     await expect(page).toHaveURL(/\/payslips$/);
     await expect(page.getByRole('heading', { level: 1, name: 'Cedolini' })).toBeVisible();
-    await expect(page.getByRole('heading', { level: 2, name: 'Cedolini' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 2, name: 'Archivio' })).toBeVisible();
     await expect(nav.getByRole('link', { name: 'Cedolini' })).toHaveAttribute('aria-current', 'page');
     await expect(page.getByText('Nessun cedolino importato.')).toBeVisible();
   });
@@ -80,7 +80,8 @@ test.describe('Cedolini', () => {
     await expect(payslipRows(page)).toHaveCount(1);
     const row = payslipRows(page).first();
     await expect(row.getByRole('button', { name: 'ottobre 2026' })).toHaveAttribute('aria-current', 'true');
-    await expect(row.getByRole('cell')).toHaveText(['ottobre 2026', '1698,00 €', '2180,00 €', '482,35 €']);
+    // L'elenco mostra mese e netto; competenze e trattenute sono nei KPI qui sotto.
+    await expect(row.getByRole('cell')).toHaveText(['ottobre 2026', '1698,00 €']);
 
     // 6. Il riepilogo del mese con i valori del cedolino sintetico.
     const mese = 'ottobre 2026';

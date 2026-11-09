@@ -77,3 +77,52 @@ export function niceScale(values: readonly number[], targetTicks = 4): ValueScal
 
   return { min: tightMin, max: tightMax, ticks };
 }
+
+/**
+ * La scala che segue i dati senza forzare lo zero.
+ *
+ * Serve a una serie che oscilla in una fascia stretta lontano da zero (es.
+ * un netto mensile fra 1.638 e 1.818): con lo zero in vista la linea
+ * sarebbe piatta. Il costo è che le variazioni appaiono ingrandite, perciò
+ * si sceglie per asse, non come regola. Gli estremi sono sempre tick tondi
+ * e i dati non li toccano mai: se un estremo cade esatto su un tick, l'asse
+ * si allunga di un passo.
+ */
+export function fittedScale(values: readonly number[], targetTicks = 4): ValueScale {
+  if (values.length === 0) {
+    return { min: 0, max: 1, ticks: [0, 1] };
+  }
+
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = max - min;
+
+  let step: number;
+  let bottom: number;
+  let top: number;
+
+  if (span === 0) {
+    // Un solo valore: un passo proporzionato e un tick tondo per lato.
+    step = min === 0 ? 1 : niceStep(Math.abs(min) * 0.1);
+    bottom = Math.floor(min / step) * step - step;
+    top = Math.ceil(min / step) * step + step;
+  } else {
+    step = niceStep(span / Math.max(targetTicks, 1));
+    bottom = Math.floor(min / step) * step;
+    top = Math.ceil(max / step) * step;
+    // La linea non deve toccare il bordo del grafico.
+    if (Math.abs(bottom - min) < step * 1e-9) {
+      bottom -= step;
+    }
+    if (Math.abs(top - max) < step * 1e-9) {
+      top += step;
+    }
+  }
+
+  const count = Math.round((top - bottom) / step);
+  const ticks = Array.from({ length: count + 1 }, (_, index) =>
+    Math.round((bottom + index * step) * 100) / 100
+  );
+
+  return { min: ticks[0] ?? bottom, max: ticks.at(-1) ?? top, ticks };
+}

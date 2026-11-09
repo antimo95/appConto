@@ -102,6 +102,39 @@ describe('confronto delle voci', () => {
     assert.equal(delta?.currentCents, 125000);
   });
 
+  it('tiene separate le voci con lo stesso codice in sezioni diverse', () => {
+    const deltas = compareItems(
+      [
+        item({ code: 'Z00001', section: 'earning', amountCents: 5000 }),
+        item({ code: 'Z00001', section: 'deduction', amountCents: 2000 }),
+      ],
+      [],
+    );
+
+    assert.deepEqual(
+      deltas.map((delta) => [delta.section, delta.status, delta.currentCents]),
+      [
+        ['earning', 'added', 5000],
+        ['deduction', 'added', 2000],
+      ],
+    );
+  });
+
+  it('una voce che passa da competenza a trattenuta non risulta invariata', () => {
+    const deltas = compareItems(
+      [item({ code: 'Z00001', section: 'deduction', amountCents: 5000 })],
+      [item({ code: 'Z00001', section: 'earning', amountCents: 5000 })],
+    );
+
+    assert.deepEqual(
+      deltas.map((delta) => [delta.section, delta.status]),
+      [
+        ['deduction', 'added'],
+        ['earning', 'removed'],
+      ],
+    );
+  });
+
   it('riconosce per descrizione le voci senza codice', () => {
     const [delta] = compareItems(
       [item({ description: 'Retribuzione utile T.F.R.', amountCents: 230000 })],

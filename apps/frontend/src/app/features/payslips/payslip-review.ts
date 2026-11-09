@@ -78,14 +78,41 @@ const REQUIRED = 'Valore obbligatorio.';
 const INVALID = 'Valore non valido.';
 const PERIOD_TAKEN = 'Esiste già un cedolino per questo mese.';
 const LEAVE_REPEATED = 'Saldo già presente.';
+const NEGATIVE = 'Il totale non può essere negativo.';
+const OUT_OF_SCALE = 'Valore fuori scala.';
+const INVALID_CODE = 'Codice voce non valido.';
 
-/** Vuoto è lecito se il campo è facoltativo; un testo che non è un numero mai. */
-function checkNumber(text: string, required: boolean): string | null {
+/** Gli stessi limiti del backend: euro per gli importi, unità per i valori decimali. */
+const MAX_EUROS = 100_000_000;
+const MAX_DECIMAL = 1_000_000;
+
+const tooLong = (max: number): string => `Testo troppo lungo (massimo ${max} caratteri).`;
+
+/**
+ * Vuoto è lecito se il campo è facoltativo; un testo che non è un numero mai.
+ * Oltre `max` in valore assoluto il backend rifiuta; `nonNegative` vale per i totali.
+ */
+function checkNumber(
+  text: string,
+  required: boolean,
+  max: number = MAX_DECIMAL,
+  nonNegative = false
+): string | null {
   if (text.trim() === '') {
     return required ? REQUIRED : null;
   }
 
-  return parseAmount(text) === null ? INVALID : null;
+  const value = parseAmount(text);
+  if (value === null) {
+    return INVALID;
+  }
+
+  return Math.abs(value) > max ? OUT_OF_SCALE : nonNegative && value < 0 ? NEGATIVE : null;
+}
+
+/** Il backend misura il testo già ripulito dagli spazi ai bordi. */
+function checkLength(text: string, max: number): string | null {
+  return text.trim().length > max ? tooLong(max) : null;
 }
 
 /**
@@ -164,14 +191,21 @@ export class PayslipReview {
       if (field.kind === 'month') {
         // In modifica non c'è sostituzione: un mese occupato è un errore.
         errors[field.key] = !/^\d{4}-(0[1-9]|1[0-2])$/.test(text)
-          ? REQUIRED
+          ? text.trim() === ''
+            ? REQUIRED
+            : INVALID
           : this.analysis() === null && this.periodTaken()
             ? PERIOD_TAKEN
             : null;
       } else if (field.kind === 'text') {
-        errors[field.key] = null;
+        errors[field.key] = checkLength(text, 200);
       } else {
-        errors[field.key] = checkNumber(text, field.required);
+        errors[field.key] = checkNumber(
+          text,
+          field.required,
+          field.kind === 'amount' ? MAX_EUROS : MAX_DECIMAL,
+          field.key === 'totalEarnings' || field.key === 'totalDeductions'
+        );
       }
     }
 
@@ -180,9 +214,14 @@ export class PayslipReview {
 
   protected readonly itemErrors = computed(() =>
     this.items().map((row) => ({
-      description: row.description.trim() === '' ? REQUIRED : null,
-      amount: checkNumber(row.amount, true),
-      quantity: checkNumber(row.quantity, false)
+      code:
+        row.code.trim().length > 16 || !/^[\p{L}\p{N}._/-]*$/u.test(row.code.trim())
+          ? INVALID_CODE
+          : null,
+      description: row.description.trim() === '' ? REQUIRED : checkLength(row.description, 200),
+      amount: checkNumber(row.amount, true, MAX_EUROS),
+      quantity: checkNumber(row.quantity, false),
+      unit: checkLength(row.unit, 12)
     }))
   );
 
@@ -194,7 +233,8 @@ export class PayslipReview {
       type: rows.findIndex((other) => other.type === row.type) < index ? LEAVE_REPEATED : null,
       accrued: checkNumber(row.accrued, true),
       used: checkNumber(row.used, true),
-      remaining: checkNumber(row.remaining, true)
+      remaining: checkNumber(row.remaining, true),
+      unit: checkLength(row.unit, 12)
     }));
   });
 
@@ -346,8 +386,6 @@ export class PayslipReview {
   /** Solo a form valido: i `!` qui sono garantiti da `problemCount() === 0`. */
   private toData(): PayslipData {
     const v = this.values();
-    const optionalCents = (text: string): number | null => parseCents(text);
-    const optionalNumber = (text: string): number | null => parseAmount(text);
 
     return {
       period: v.period,
@@ -355,16 +393,16 @@ export class PayslipReview {
       totalEarningsCents: parseCents(v.totalEarnings)!,
       totalDeductionsCents: parseCents(v.totalDeductions)!,
       netCents: parseCents(v.net)!,
-      roundingCents: optionalCents(v.rounding),
-      taxableInpsCents: optionalCents(v.taxableInps),
-      taxableIrpefCents: optionalCents(v.taxableIrpef),
-      workedHours: optionalNumber(v.workedHours),
+      roundingCents: parseCents(v.rounding),
+      taxableInpsCents: parseCents(v.taxableInps),
+      taxableIrpefCents: parseCents(v.taxableIrpef),
+      workedHours: parseAmount(v.workedHours),
       items: this.items().map((row) => ({
         code: row.code.trim() === '' ? null : row.code.trim(),
         description: row.description.trim(),
         section: row.section,
         amountCents: parseCents(row.amount)!,
-        quantity: optionalNumber(row.quantity),
+        quantity: parseAmount(row.quantity),
         unit: row.unit.trim() === '' ? null : row.unit.trim()
       })),
       leaveBalances: this.leaves().map((row) => ({

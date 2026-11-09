@@ -23,7 +23,8 @@ export function parseAmount(raw: string): number | null {
     normalized = value.split(thousands).join('').replace(decimal, '.');
   } else if (lastComma >= 0) {
     normalized = value.replace(',', '.');
-  } else if (/^-?\d{1,3}(\.\d{3})+$/.test(value)) {
+  } else if (/^-?[1-9]\d{0,2}(\.\d{3})+$/.test(value)) {
+    // Un gruppo di migliaia non comincia per zero: `0.500` è mezzo euro.
     normalized = value.split('.').join('');
   } else {
     normalized = value;

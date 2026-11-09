@@ -141,6 +141,8 @@ function itemsLayout(page: PdfTextPage): ItemsLayout | null {
     }
 
     const ends = ITEMS_END_LABELS.flatMap((words) => findLabels(page, words, KNOWN_LABELS))
+      // Una sezione apre la propria riga: "conguaglio" dentro una descrizione non chiude l'elenco.
+      .filter((label) => page.items.some((item) => item.x === label.x && item.y === label.y))
       .map((label) => label.y)
       .filter((y) => y < deductions.y);
 
@@ -334,7 +336,8 @@ function amountNear(document: PdfTextDocument, words: readonly string[]): string
       rivals.filter((rival) => accompanies(rival, token)),
       (rival) => Math.abs(drop(rival, token)),
     );
-    return owner === label;
+    // Per posizione: se l'etichetta è una finestra, i rivali sono oggetti diversi.
+    return owner !== null && owner.x === label.x && owner.y === label.y;
   });
 
   const best = nearest(candidates, (token) => Math.abs(drop(label, token)));
@@ -582,7 +585,7 @@ export const zucchettiLulParser: PayslipParser = {
   canParse(document) {
     return (
       layouts(document).length > 0 &&
-      document.pages.some((page) => page.items.some((item) => isLabel(item.text, LABELS.net)))
+      findLabel(document.pages, LABELS.net, KNOWN_LABELS) !== null
     );
   },
 

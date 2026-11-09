@@ -207,6 +207,15 @@ describe('PayslipLeaveOverview', () => {
     expect(content).toMatch(/cedolin/i);
   });
 
+  it('con un solo cedolino scrive «1 cedolino», al singolare', async () => {
+    const data = coherent();
+    data.coverage = { from: '2026-10', to: '2026-10', payslipCount: 1, missingPeriods: [] };
+    const content = text(await render(data));
+
+    expect(content).toContain('1 cedolino nel periodo');
+    expect(content).not.toContain('1 cedolini');
+  });
+
   it('elenca i mesi mancanti fra il primo e l\'ultimo cedolino', async () => {
     const data = coherent();
     data.coverage = { from: '2026-07', to: '2026-10', payslipCount: 3, missingPeriods: ['2026-08'] };

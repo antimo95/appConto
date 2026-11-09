@@ -28,8 +28,84 @@
   @include mixins.data-table;
 }
 
+/*
+ * L'elenco dei mesi a sinistra, il mese scelto a destra: il netto del mese
+ * sta nella stessa schermata dell'elenco con cui lo si sceglie.
+ *
+ * 18rem bastano a mese e netto; la colonna del mese prende il resto. Sotto
+ * gli 80rem (la soglia della toolbox di `page-layout`) le colonne si
+ * impilano, nell'ordine del DOM.
+ */
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 18rem) minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.year-column,
+.month-column {
+  min-width: 0;
+}
+
+/*
+ * La colonna dell'anno è più corta di quella del mese: invece di lasciare una
+ * striscia vuota mentre il mese scorre, resta a schermo — come la toolbox di
+ * `page-layout` — e scorre dentro di sé se supera l'altezza della finestra.
+ * Così l'elenco per cambiare mese è sempre a portata.
+ */
+@media (width >= 80rem) {
+  .year-column {
+    position: sticky;
+    top: var(--space-8);
+    max-height: calc(100vh - var(--space-8) * 2);
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+}
+
+/*
+ * I cinque KPI del mese: su una riga quando la colonna ha spazio (servono
+ * circa 51rem fra bordo e padding del pannello), altrimenti tre e due —
+ * importi sopra, ferie e permessi sotto — invece di quattro e un orfano.
+ * La griglia delle card è di `app-stat-card-grid`: da qui si limita solo la
+ * larghezza del suo host, e `auto-fit` scende da sé a tre colonne.
+ */
+.month-column {
+  container-type: inline-size;
+}
+
+@container (width < 51.5rem) {
+  .month-column app-stat-card-grid {
+    max-width: 38rem;
+  }
+}
+
+@media (width < 80rem) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+}
+
+/*
+ * L'elenco cresce di dodici righe l'anno: oltre le dodici scorre dentro il
+ * proprio riquadro, con l'intestazione ferma, e non spinge giù il mese.
+ */
+.year-column .scroller {
+  max-height: 34rem;
+  overflow-y: auto;
+
+  thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--color-surface);
+  }
+}
+
 .payslips {
-  min-width: 30rem;
+  font-variant-numeric: tabular-nums;
 
   /* Tutta la riga seleziona: il pulsante resta il controllo da tastiera. */
   tbody tr {

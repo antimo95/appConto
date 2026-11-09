@@ -129,15 +129,15 @@ test.describe('Cedolini: selezione e riepilogo ferie', () => {
     await expect(riepilogo.getByText('Anomalia', { exact: true })).toHaveCount(0);
     await expect(riepilogo.getByRole('button', { name: 'Vai al cedolino' })).toHaveCount(0);
 
-    // Il pannello sta dopo l'elenco e prima del mese selezionato.
+    // Il pannello sta in alto, prima dell'elenco e del mese selezionato.
     const titoli = (
       await page.locator('section').evaluateAll((sezioni) =>
         sezioni.map((s) => s.querySelector('h2')?.textContent?.trim() ?? ''),
       )
     ).filter(Boolean);
-    expect(titoli.indexOf('Cedolini importati')).toBeGreaterThanOrEqual(0);
-    expect(titoli.indexOf('Cedolini importati')).toBeLessThan(titoli.indexOf('Riepilogo ferie e permessi'));
-    expect(titoli.indexOf('Riepilogo ferie e permessi')).toBeLessThan(titoli.indexOf('ottobre 2026'));
+    expect(titoli.indexOf('Riepilogo ferie e permessi')).toBeGreaterThanOrEqual(0);
+    expect(titoli.indexOf('Riepilogo ferie e permessi')).toBeLessThan(titoli.indexOf('Cedolini importati'));
+    expect(titoli.indexOf('Cedolini importati')).toBeLessThan(titoli.indexOf('ottobre 2026'));
 
     // Il riepilogo arriva da `leave` e non è salvato.
     const sintesi = await (await request.get('/api/payslip-summaries')).json();

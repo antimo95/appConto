@@ -75,9 +75,13 @@
             <input
               type="text"
               [attr.aria-label]="'Codice della voce ' + (i + 1)"
+              [attr.aria-invalid]="itemErrors()[i].code ? 'true' : null"
               [value]="row.code"
               (input)="setItem(row.id, 'code', $event)"
             />
+            @if (itemErrors()[i].code; as message) {
+              <span class="field-error">{{ message }}</span>
+            }
           </td>
           <td>
             <input
@@ -125,14 +129,21 @@
               [value]="row.quantity"
               (input)="setItem(row.id, 'quantity', $event)"
             />
+            @if (itemErrors()[i].quantity; as message) {
+              <span class="field-error">{{ message }}</span>
+            }
           </td>
           <td>
             <input
               type="text"
               [attr.aria-label]="'Unità della voce ' + (i + 1)"
+              [attr.aria-invalid]="itemErrors()[i].unit ? 'true' : null"
               [value]="row.unit"
               (input)="setItem(row.id, 'unit', $event)"
             />
+            @if (itemErrors()[i].unit; as message) {
+              <span class="field-error">{{ message }}</span>
+            }
           </td>
           <td>
             <button
@@ -228,9 +239,13 @@
             <input
               type="text"
               [attr.aria-label]="'Unità del saldo ' + (i + 1)"
+              [attr.aria-invalid]="leaveErrors()[i].unit ? 'true' : null"
               [value]="row.unit"
               (input)="setLeave(row.id, 'unit', $event)"
             />
+            @if (leaveErrors()[i].unit; as message) {
+              <span class="field-error">{{ message }}</span>
+            }
           </td>
           <td>
             <button

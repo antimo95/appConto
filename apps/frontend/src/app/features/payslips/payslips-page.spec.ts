@@ -483,6 +483,37 @@ describe('PayslipsPage', () => {
     await flushDetail(detail());
   });
 
+  it('scegliere un altro mese durante la modifica chiude il modulo e mostra il dettaglio del nuovo mese', async () => {
+    await harness.navigateByUrl('/payslips', PayslipsPage);
+    await loadPage();
+    await flushDetail(detail());
+
+    root().querySelector<HTMLButtonElement>('app-payslip-detail .edit')!.click();
+    await settle();
+    expect(root().querySelector('app-payslip-review')).not.toBeNull();
+
+    root().querySelectorAll<HTMLButtonElement>('table.payslips .month')[1].click();
+    await settle();
+    await flushDetail({ ...detail(AUGUST), fileName: 'agosto.pdf' });
+
+    expect(root().querySelector('app-payslip-review')).toBeNull();
+    expect(root().querySelector('app-payslip-detail')?.textContent).toContain('agosto.pdf');
+  });
+
+  it('riscegliere il mese in modifica lascia aperto il modulo', async () => {
+    await harness.navigateByUrl('/payslips', PayslipsPage);
+    await loadPage();
+    await flushDetail(detail());
+
+    root().querySelector<HTMLButtonElement>('app-payslip-detail .edit')!.click();
+    await settle();
+
+    root().querySelectorAll<HTMLButtonElement>('table.payslips .month')[0].click();
+    await settle();
+
+    expect(root().querySelector('app-payslip-review')).not.toBeNull();
+  });
+
   it('un errore di caricamento dell\'elenco offre di riprovare', async () => {
     await harness.navigateByUrl('/payslips', PayslipsPage);
     await settle();
@@ -972,15 +1003,16 @@ describe('PayslipsPage', () => {
       });
     }
 
-    it('un click sulle altre celle (Competenze, Trattenute) e sulla riga seleziona il cedolino', async () => {
+    // L'elenco ha due colonne (Mese, Netto): competenze e trattenute stanno nei KPI del mese.
+    it('un click sulla cella del mese fuori dal pulsante, sul Netto e sulla riga seleziona il cedolino', async () => {
       await open('2026-10');
 
-      rows()[2].querySelectorAll<HTMLTableCellElement>('td')[2].click();
+      rows()[2].querySelectorAll<HTMLTableCellElement>('td')[0].click();
       await settle();
       expect(router.url).toContain('period=2026-08');
       await flushDetail(detailOf(AUG));
 
-      rows()[1].querySelectorAll<HTMLTableCellElement>('td')[3].click();
+      rows()[1].querySelectorAll<HTMLTableCellElement>('td')[1].click();
       await settle();
       expect(router.url).toContain('period=2026-09');
       await flushDetail(detailOf(SEP));
@@ -1034,7 +1066,7 @@ describe('PayslipsPage', () => {
       expect(document.activeElement).toBe(target);
     });
 
-    it('il riepilogo ferie sta in un pannello dopo l\'elenco e prima del mese selezionato', async () => {
+    it('il riepilogo ferie sta in un pannello in alto, prima dell\'elenco e del mese selezionato', async () => {
       await open(null);
 
       const overview = root().querySelector('app-payslip-leave-overview');
@@ -1044,7 +1076,7 @@ describe('PayslipsPage', () => {
 
       const list = root().querySelector('table.payslips')!;
       const grid = root().querySelector('app-stat-card-grid')!;
-      expect(list.compareDocumentPosition(overview!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(overview!.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(overview!.compareDocumentPosition(grid) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(overview!.textContent).toContain('Coerente');
     });

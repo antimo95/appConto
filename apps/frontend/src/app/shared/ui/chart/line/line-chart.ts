@@ -92,7 +92,9 @@ export class LineChart<T> {
   // Non legge l'hover: a ogni movimento del puntatore non si rifanno valori e scala.
   private readonly valueRange = computed(() => {
     const points = this.points();
-    const values = this.series().flatMap((series) => points.map((point) => series.value(point)));
+    const values = this.series()
+      .flatMap((series) => points.map((point) => series.value(point)))
+      .filter((value) => value !== null);
     return lineChartValueRange(this.valueAxis(), values);
   });
 
