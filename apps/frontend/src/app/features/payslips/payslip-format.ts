@@ -70,13 +70,31 @@ export function eurosToCents(euros: number): number {
 }
 
 /**
- * Da testo digitato a centesimi: `null` se vuoto o illeggibile.
- * Accetta `1.234,56` come `1234.56`.
+ * Da testo digitato a numero: `null` se vuoto o illeggibile.
+ * `Number()` accetterebbe anche `1e3` e `0x10`: prima si scartano i testi
+ * con caratteri che un importo non ha.
+ */
+export function parseNumberInput(text: string): number | null {
+  if (!/^-?[\d.,]*$/.test(text.replace(/[€\s]/g, ''))) {
+    return null;
+  }
+
+  return parseAmount(text);
+}
+
+/**
+ * Da testo digitato a centesimi: `null` se vuoto, illeggibile o con più di due
+ * decimali. Accetta `1.234,56` come `1234.56`.
  */
 export function parseCents(text: string): number | null {
-  const euros = parseAmount(text);
+  const euros = parseNumberInput(text);
+  if (euros === null) {
+    return null;
+  }
 
-  return euros === null ? null : eurosToCents(euros);
+  const cents = eurosToCents(euros);
+  // Il margine assorbe il rumore binario (1,1 × 100); `12,345` dà 0,5 di scarto.
+  return Math.abs(euros * 100 - cents) < 1e-3 ? cents : null;
 }
 
 /** Per precompilare un campo: `123456` diventa `1234,56`, senza separatore di migliaia. */

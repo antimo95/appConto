@@ -114,6 +114,57 @@ describe('PayslipReview', () => {
     expect(confirmButton().disabled).toBe(false);
   });
 
+  it('un importo scritto in notazione scientifica non è valido', async () => {
+    await render();
+
+    await type(field('net'), '1e3');
+
+    expect(field('net').getAttribute('aria-invalid')).toBe('true');
+    expect(host().querySelector('#payslip-error-net')?.textContent).toContain('Valore non valido.');
+    expect(confirmButton().disabled).toBe(true);
+  });
+
+  it('un importo con tre decimali segnala che ne bastano due', async () => {
+    await render();
+
+    await type(field('net'), '12,345');
+
+    expect(host().querySelector('#payslip-error-net')?.textContent).toContain(
+      'Al massimo due decimali.'
+    );
+    expect(confirmButton().disabled).toBe(true);
+  });
+
+  it('quantità di una voce e saldo in notazione scientifica non sono validi', async () => {
+    await render();
+
+    const quantity = host().querySelector<HTMLInputElement>(
+      'input[aria-label="Quantità della voce 1"]'
+    )!;
+    await type(quantity, '1e3');
+    expect(quantity.getAttribute('aria-invalid')).toBe('true');
+    expect(host().querySelector('table.items tbody tr .field-error')?.textContent).toContain(
+      'Valore non valido.'
+    );
+
+    await type(quantity, '');
+    const accrued = host().querySelector<HTMLInputElement>(
+      'input[aria-label="Maturato del saldo 1"]'
+    )!;
+    await type(accrued, '1e3');
+    expect(accrued.getAttribute('aria-invalid')).toBe('true');
+    expect(host().textContent).toContain('Valore non valido.');
+  });
+
+  it('le ore lavorate con la virgola restano valide', async () => {
+    await render();
+
+    await type(field('workedHours'), '168,5');
+
+    expect(field('workedHours').getAttribute('aria-invalid')).toBeNull();
+    expect(confirmButton().disabled).toBe(false);
+  });
+
   it('una voce senza descrizione blocca la conferma', async () => {
     await render();
 

@@ -10,7 +10,8 @@ import {
   SECTION_LABELS,
   centsToInput,
   numberToInput,
-  parseCents
+  parseCents,
+  parseNumberInput
 } from './payslip-format';
 import {
   LeaveType,
@@ -20,7 +21,6 @@ import {
   PayslipSection,
   ReviewResult
 } from './payslip.model';
-import { parseAmount } from '../../core/amount';
 
 type ScalarKey =
   | 'period'
@@ -76,6 +76,7 @@ type ScalarValues = Record<ScalarKey, string>;
 
 const REQUIRED = 'Valore obbligatorio.';
 const INVALID = 'Valore non valido.';
+const TOO_MANY_DECIMALS = 'Al massimo due decimali.';
 const PERIOD_TAKEN = 'Esiste già un cedolino per questo mese.';
 const LEAVE_REPEATED = 'Saldo già presente.';
 const NEGATIVE = 'Il totale non può essere negativo.';
@@ -96,15 +97,19 @@ function checkNumber(
   text: string,
   required: boolean,
   max: number = MAX_DECIMAL,
-  nonNegative = false
+  nonNegative = false,
+  cents = false
 ): string | null {
   if (text.trim() === '') {
     return required ? REQUIRED : null;
   }
 
-  const value = parseAmount(text);
+  const value = parseNumberInput(text);
   if (value === null) {
     return INVALID;
+  }
+  if (cents && parseCents(text) === null) {
+    return TOO_MANY_DECIMALS;
   }
 
   return Math.abs(value) > max ? OUT_OF_SCALE : nonNegative && value < 0 ? NEGATIVE : null;
@@ -204,7 +209,8 @@ export class PayslipReview {
           text,
           field.required,
           field.kind === 'amount' ? MAX_EUROS : MAX_DECIMAL,
-          field.key === 'totalEarnings' || field.key === 'totalDeductions'
+          field.key === 'totalEarnings' || field.key === 'totalDeductions',
+          field.kind === 'amount'
         );
       }
     }
@@ -219,7 +225,7 @@ export class PayslipReview {
           ? INVALID_CODE
           : null,
       description: row.description.trim() === '' ? REQUIRED : checkLength(row.description, 200),
-      amount: checkNumber(row.amount, true, MAX_EUROS),
+      amount: checkNumber(row.amount, true, MAX_EUROS, false, true),
       quantity: checkNumber(row.quantity, false),
       unit: checkLength(row.unit, 12)
     }))
@@ -396,20 +402,20 @@ export class PayslipReview {
       roundingCents: parseCents(v.rounding),
       taxableInpsCents: parseCents(v.taxableInps),
       taxableIrpefCents: parseCents(v.taxableIrpef),
-      workedHours: parseAmount(v.workedHours),
+      workedHours: parseNumberInput(v.workedHours),
       items: this.items().map((row) => ({
         code: row.code.trim() === '' ? null : row.code.trim(),
         description: row.description.trim(),
         section: row.section,
         amountCents: parseCents(row.amount)!,
-        quantity: parseAmount(row.quantity),
+        quantity: parseNumberInput(row.quantity),
         unit: row.unit.trim() === '' ? null : row.unit.trim()
       })),
       leaveBalances: this.leaves().map((row) => ({
         type: row.type,
-        accrued: parseAmount(row.accrued)!,
-        used: parseAmount(row.used)!,
-        remaining: parseAmount(row.remaining)!,
+        accrued: parseNumberInput(row.accrued)!,
+        used: parseNumberInput(row.used)!,
+        remaining: parseNumberInput(row.remaining)!,
         unit: row.unit.trim() === '' ? 'ore' : row.unit.trim()
       }))
     };

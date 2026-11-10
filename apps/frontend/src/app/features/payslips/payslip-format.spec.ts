@@ -9,7 +9,8 @@ import {
   formatLeaveValue,
   formatQuantity,
   numberToInput,
-  parseCents
+  parseCents,
+  parseNumberInput
 } from './payslip-format';
 
 describe('payslip-format', () => {
@@ -32,6 +33,21 @@ describe('payslip-format', () => {
   it('un testo vuoto o illeggibile non è un importo', () => {
     expect(parseCents('')).toBeNull();
     expect(parseCents('abc')).toBeNull();
+  });
+
+  it('rifiuta ciò che Number() accetterebbe ma non è un importo digitato', () => {
+    for (const text of ['1e3', '0x10', '--5', '1,2,3', '12,345']) {
+      expect(parseCents(text), text).toBeNull();
+    }
+    expect(parseNumberInput('1e3')).toBeNull();
+    expect(parseNumberInput('168,5')).toBe(168.5);
+  });
+
+  it('un importo ha al massimo due decimali', () => {
+    expect(parseCents('12,30')).toBe(1230);
+    expect(parseCents('1.234,56')).toBe(123456);
+    expect(parseCents('12,3')).toBe(1230);
+    expect(parseCents('-0,5')).toBe(-50);
   });
 
   it('precompila gli importi con la virgola e senza migliaia', () => {
