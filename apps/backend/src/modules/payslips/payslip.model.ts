@@ -116,8 +116,14 @@ export function normalizeDescription(description: string): string {
   return foldSearchText(description).replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 }
 
-/** Un importo in centesimi entro limiti che un cedolino non può superare. */
-const MAX_CENTS = 100_000_000_00;
+/**
+ * Un importo in centesimi entro limiti che un cedolino non può superare.
+ * Il frontend ne ripete i valori (`payslip-review.ts`): `frontend-contract.test.ts` li tiene allineati.
+ */
+export const MAX_CENTS = 100_000_000_00;
+
+/** Il limite di quantità, ore e saldi, che non sono denaro. */
+export const MAX_DECIMAL = 1_000_000;
 
 const centsSchema = z
   .number({ error: 'Importo non valido: deve essere un numero intero di centesimi.' })
@@ -130,8 +136,8 @@ const nonNegativeCents = centsSchema.min(0, { error: 'Il totale non può essere 
 const decimalSchema = z
   .number({ error: 'Valore numerico non valido.' })
   .finite({ error: 'Valore numerico non valido.' })
-  .min(-1_000_000, { error: 'Valore fuori scala.' })
-  .max(1_000_000, { error: 'Valore fuori scala.' });
+  .min(-MAX_DECIMAL, { error: 'Valore fuori scala.' })
+  .max(MAX_DECIMAL, { error: 'Valore fuori scala.' });
 
 /** Una stringa vuota non è un valore: è l'assenza del dato. */
 const optionalText = (max: number) =>
@@ -179,7 +185,7 @@ export const leaveBalanceSchema = z.object({
 
 const leaveBalancesSchema = z
   .array(leaveBalanceSchema, { error: 'I saldi devono essere un elenco.' })
-  .max(LEAVE_TYPES.length)
+  .max(LEAVE_TYPES.length, { error: 'Troppi saldi: al massimo uno per tipo (FERIE, PAR).' })
   .refine((balances) => new Set(balances.map((balance) => balance.type)).size === balances.length, {
     error: 'Ogni saldo (FERIE, PAR) può comparire una sola volta.',
   });
