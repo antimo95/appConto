@@ -18,6 +18,11 @@ import { LOGS_DIR } from "../paths.js";
  * tecnici. Chi aggiunge una chiamata deve rispettare questo confine — i
  * dettagli di una riga di CSV scartata, per esempio, appartengono alla
  * risposta HTTP e non al disco.
+ *
+ * Unica eccezione voluta: gli errori 500 di `errorHandler` registrano metodo e
+ * URL completo della richiesta, query compresa. Un parametro come `search` può
+ * quindi portare nel file il testo cercato (nomi di merchant, descrizioni):
+ * scelta accettata perché l'app è locale e il log resta sulla macchina.
  */
 
 /** Per quanti giorni si conservano i file. */

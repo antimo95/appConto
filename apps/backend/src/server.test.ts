@@ -76,7 +76,7 @@ function nuovoRegistro(variazioni: Variazioni = {}): Registro {
         res.end('app di prova');
       };
     },
-    createServer: (app) => createServer(app),
+    createServer,
     listen: async (srv, richiesta) => {
       ordine.push('listen');
       richieste.push(richiesta);

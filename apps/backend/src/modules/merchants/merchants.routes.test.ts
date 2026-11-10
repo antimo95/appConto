@@ -75,3 +75,29 @@ describe('API dei merchant', () => {
     assert.ok(Array.isArray(body));
   });
 });
+
+async function modifica(percorso: string, corpo: unknown): Promise<{ status: number; body: unknown }> {
+  const risposta = await fetch(`${base}${percorso}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(corpo),
+  });
+
+  return { status: risposta.status, body: await risposta.json() };
+}
+
+describe('PATCH dei merchant: errori', () => {
+  it('PATCH /merchants/:id con {} → 400', async () => {
+    assert.deepEqual(await modifica('/api/merchants/qualsiasi', {}), {
+      status: 400,
+      body: { error: 'Il corpo della richiesta deve contenere "displayName".' },
+    });
+  });
+
+  it('PATCH /merchants/:id/category su un merchant inesistente → 404 sul merchant, prima della categoria', async () => {
+    assert.deepEqual(await modifica('/api/merchants/m-assente/category', { categoryId: 'c-assente' }), {
+      status: 404,
+      body: { error: 'Merchant "m-assente" non trovato.' },
+    });
+  });
+});

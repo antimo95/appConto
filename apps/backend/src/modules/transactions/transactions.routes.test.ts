@@ -164,3 +164,54 @@ describe('DELETE /api/transactions', () => {
     assert.match(usi[0]?.usedBy ?? '', /prestito a Luca/);
   });
 });
+
+describe('GET e PATCH su un movimento inesistente o malformato', () => {
+  async function chiama(
+    pathname: string,
+    method: string,
+    corpo?: unknown,
+  ): Promise<{ status: number; body: unknown }> {
+    const risposta = await fetch(`${base}${pathname}`, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      ...(corpo === undefined ? {} : { body: JSON.stringify(corpo) }),
+    });
+
+    return { status: risposta.status, body: await risposta.json() };
+  }
+
+  it('GET di un id che non esiste risponde 404 con il messaggio', async () => {
+    const esito = await chiama('/api/transactions/inesistente', 'GET');
+
+    assert.equal(esito.status, 404);
+    assert.deepEqual(esito.body, { error: 'Transazione "inesistente" non trovata.' });
+  });
+
+  it('PATCH del tipo su un id che non esiste risponde 404', async () => {
+    const esito = await chiama('/api/transactions/inesistente/type', 'PATCH', { type: 'EXPENSE' });
+
+    assert.equal(esito.status, 404);
+    assert.deepEqual(esito.body, { error: 'Transazione "inesistente" non trovata.' });
+  });
+
+  it('PATCH con un tipo non valido è 400 anche se l-id non esiste: la forma viene prima', async () => {
+    const esito = await chiama('/api/transactions/nope/type', 'PATCH', { type: 'X' });
+
+    assert.equal(esito.status, 400);
+    assert.deepEqual(esito.body, {
+      error:
+        'Il corpo della richiesta deve contenere "type" fra: EXPENSE, INCOME, WITHDRAWAL, LOAN, TRANSFER, OTHER.',
+    });
+  });
+
+  it('DELETE di id che non esistono è 200 e li riporta in notFound', async () => {
+    const esito = await elimina(['fantasma-1', 'fantasma-2']);
+
+    assert.equal(esito.status, 200);
+    assert.deepEqual(esito.body, {
+      requested: 2,
+      deleted: 0,
+      notFound: ['fantasma-1', 'fantasma-2'],
+    });
+  });
+});
