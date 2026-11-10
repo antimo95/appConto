@@ -294,3 +294,12 @@ describe('frontend non compilato', () => {
     assert.match(reply.body, /Frontend non compilato/);
   });
 });
+
+describe('metodi non previsti sulle API', () => {
+  it('PUT /api/categories → 404 con il messaggio fisso', async () => {
+    const reply = await send('/api/categories', { method: 'PUT' });
+
+    assert.equal(reply.status, 404);
+    assert.equal(reply.body, '{"error":"Risorsa non trovata: PUT /api/categories"}');
+  });
+});

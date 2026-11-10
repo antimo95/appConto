@@ -447,3 +447,14 @@ describe('rotte inesistenti sotto /api', () => {
     }
   });
 });
+
+describe('GET /api/restore senza ripristino in attesa', () => {
+  beforeEach(svuotaBackup);
+
+  it('risponde 200 con corpo null', async () => {
+    const risposta = await invia('/api/restore');
+
+    assert.equal(risposta.status, 200);
+    assert.equal(risposta.body, 'null');
+  });
+});
