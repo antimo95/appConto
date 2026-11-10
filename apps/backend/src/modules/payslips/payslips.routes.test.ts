@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { after, describe, it } from 'node:test';
+import { after, before, describe, it } from 'node:test';
 
 /** Le API dei cedolini: metodi, codici di stato e forma delle risposte. */
 
@@ -346,5 +346,55 @@ describe('ciclo di vita di un cedolino', () => {
   it('nessun verbo nei percorsi: un metodo non previsto è un 404 dell\'API', async () => {
     assert.equal((await chiama('PUT', '/payslips')).status, 404);
     assert.equal((await chiama('GET', '/payslip-analyses')).status, 404);
+  });
+});
+
+describe('messaggi di validazione', () => {
+  /** Un messaggio di zod non tradotto parla di «expected», «received», «invalid input». */
+  const inItaliano = (risposta: Risposta): void => {
+    assert.equal(risposta.status, 400, JSON.stringify(risposta.body));
+    assert.doesNotMatch(errore(risposta), /invalid|expected|received|required/i);
+  };
+
+  let analisi: Analisi;
+  let corpo: Record<string, unknown>;
+  let salvato: Dettaglio;
+
+  before(async () => {
+    analisi = await analizza(syntheticPayslipPdf({ month: 'Luglio 2025' }));
+    corpo = { analysisId: analisi.id, ...analisi.draft };
+    const risposta = await chiama('POST', '/payslips', { json: corpo });
+    assert.equal(risposta.status, 201, JSON.stringify(risposta.body));
+    salvato = risposta.body as Dettaglio;
+  });
+
+  const campo = (nome: string, valore: unknown): Record<string, unknown> => ({ ...corpo, [nome]: valore });
+
+  it('POST /payslips senza corpo e senza Content-Type', async () => {
+    inItaliano(await chiama('POST', '/payslips'));
+  });
+
+  it('POST /payslips con un array al posto dell\'oggetto', async () => {
+    inItaliano(await chiama('POST', '/payslips', { json: [] }));
+  });
+
+  it('POST /payslips con items che non è un elenco', async () => {
+    inItaliano(await chiama('POST', '/payslips', { json: campo('items', 'x') }));
+  });
+
+  it('POST /payslips con replaceExisting che non è un booleano', async () => {
+    inItaliano(await chiama('POST', '/payslips', { json: campo('replaceExisting', 'si') }));
+  });
+
+  it('POST /payslips con leaveBalances che non è un elenco', async () => {
+    inItaliano(await chiama('POST', '/payslips', { json: campo('leaveBalances', 'x') }));
+  });
+
+  it('PATCH /payslips/:id con items che non è un elenco', async () => {
+    inItaliano(await chiama('PATCH', `/payslips/${salvato.id}`, { json: { items: 'x' } }));
+  });
+
+  it('PATCH /payslips/:id con un saldo vuoto', async () => {
+    inItaliano(await chiama('PATCH', `/payslips/${salvato.id}`, { json: { leaveBalances: [{}] } }));
   });
 });

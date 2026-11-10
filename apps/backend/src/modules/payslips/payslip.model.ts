@@ -147,6 +147,9 @@ export const periodSchema = z
   .trim()
   .regex(PERIOD_PATTERN, { error: 'Periodo non valido: usa il formato AAAA-MM.' });
 
+/** Il corpo della richiesta è l'unico punto in cui zod non ha un campo a cui riferirsi. */
+const BODY_ERROR = 'Corpo della richiesta mancante o non valido.';
+
 export const payslipItemSchema = z.object({
   code: optionalText(16).refine((code) => code === null || /^[\p{L}\p{N}._/-]+$/u.test(code), {
     error: 'Codice voce non valido.',
@@ -160,7 +163,7 @@ export const payslipItemSchema = z.object({
   amountCents: centsSchema,
   quantity: decimalSchema.nullish().transform((value) => value ?? null),
   unit: optionalText(12),
-});
+}, { error: 'Voce non valida.' });
 
 export const leaveBalanceSchema = z.object({
   type: z.enum(LEAVE_TYPES, { error: 'Tipo di saldo non valido: FERIE oppure PAR.' }),
@@ -172,10 +175,10 @@ export const leaveBalanceSchema = z.object({
     .trim()
     .min(1, { error: 'Unità del saldo mancante.' })
     .max(12, { error: 'Unità del saldo troppo lunga.' }),
-});
+}, { error: 'Saldo non valido.' });
 
 const leaveBalancesSchema = z
-  .array(leaveBalanceSchema)
+  .array(leaveBalanceSchema, { error: 'I saldi devono essere un elenco.' })
   .max(LEAVE_TYPES.length)
   .refine((balances) => new Set(balances.map((balance) => balance.type)).size === balances.length, {
     error: 'Ogni saldo (FERIE, PAR) può comparire una sola volta.',
@@ -191,7 +194,7 @@ const payslipDataShape = {
   taxableInpsCents: centsSchema.nullish().transform((value) => value ?? null),
   taxableIrpefCents: centsSchema.nullish().transform((value) => value ?? null),
   workedHours: decimalSchema.nullish().transform((value) => value ?? null),
-  items: z.array(payslipItemSchema).max(300, { error: 'Troppe voci per un cedolino.' }),
+  items: z.array(payslipItemSchema, { error: 'Le voci devono essere un elenco.' }).max(300, { error: 'Troppe voci per un cedolino.' }),
   leaveBalances: leaveBalancesSchema,
 };
 
@@ -199,12 +202,15 @@ const payslipDataShape = {
 export const newPayslipSchema = z.object({
   analysisId: z.string({ error: 'Analisi mancante.' }).trim().min(1, { error: 'Analisi mancante.' }),
   /** Sostituire il cedolino già presente per lo stesso mese: va chiesto, mai dedotto. */
-  replaceExisting: z.boolean().optional().default(false),
+  replaceExisting: z
+    .boolean({ error: 'La sostituzione del cedolino esistente deve essere vero o falso.' })
+    .optional()
+    .default(false),
   ...payslipDataShape,
-});
+}, { error: BODY_ERROR });
 
 /** Correzione di un cedolino già confermato: si indica solo ciò che cambia. */
 export const payslipUpdateSchema = z
-  .object(payslipDataShape)
+  .object(payslipDataShape, { error: BODY_ERROR })
   .partial()
   .refine((patch) => Object.keys(patch).length > 0, { error: 'Nessuna modifica indicata.' });
