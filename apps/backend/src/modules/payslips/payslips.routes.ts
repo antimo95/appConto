@@ -1,4 +1,4 @@
-import { Router, json, raw } from 'express';
+import { Router, json, raw, type NextFunction, type Request, type Response } from 'express';
 import { ValidationError } from '../../shared/errors.js';
 import { queryParam, toSingle } from '../../shared/http/query-params.js';
 import { MAX_PDF_BYTES, payslipsService, type PayslipsService } from './payslips.service.js';
@@ -61,6 +61,17 @@ export function createPayslipAnalysesRouter(service: Pick<PayslipsService, 'anal
   router.delete('/:id', (req, res) => {
     service.discardAnalysis(required(req.params.id, "dell'analisi"));
     res.status(204).end();
+  });
+
+  // Il limite scatta nel parser, prima del controllo del service: senza questo
+  // il client riceverebbe il messaggio generico «il corpo non è leggibile».
+  router.use((error: { type?: string }, _req: Request, res: Response, next: NextFunction) => {
+    if (error.type === 'entity.too.large') {
+      res.status(413).json({ error: 'Il file supera la dimensione massima di 10 MB.' });
+      return;
+    }
+
+    next(error);
   });
 
   return router;

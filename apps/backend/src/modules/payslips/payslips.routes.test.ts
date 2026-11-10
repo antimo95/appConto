@@ -139,6 +139,7 @@ describe('POST /payslip-analyses', () => {
     enorme.write('%PDF-1.4\n');
     const risposta = await chiama('POST', '/payslip-analyses', { pdf: enorme });
     assert.equal(risposta.status, 413);
+    assert.equal(errore(risposta), 'Il file supera la dimensione massima di 10 MB.');
   });
 });
 
