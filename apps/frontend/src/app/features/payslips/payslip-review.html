@@ -277,6 +277,10 @@
   </p>
 }
 
+@if (error(); as message) {
+  <p class="message--error save-error" role="alert">{{ message }}</p>
+}
+
 <div class="actions">
   <button type="button" class="confirm" [disabled]="!canConfirm()" (click)="confirm()">
     {{ analysis() ? 'Conferma e salva' : 'Salva modifiche' }}

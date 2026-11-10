@@ -330,7 +330,9 @@ describe('PayslipsPage', () => {
 
     await chooseFile(new File(['a,b'], 'dati.csv', { type: 'text/csv' }));
 
+    // Nessuna revisione aperta: l'errore sta in cima alla pagina.
     expect(root().querySelector('[role="alert"]')?.textContent).toContain('non è un PDF');
+    expect(root().querySelector('app-payslip-review')).toBeNull();
     http.expectNone((request) => request.url.includes('payslip-analyses'));
   });
 
@@ -773,9 +775,11 @@ describe('PayslipsPage', () => {
     );
     await settle();
 
-    expect(root().querySelector('[role="alert"]')?.textContent).toContain(
-      'Esiste già un cedolino per questo mese.'
-    );
+    // L'errore sta accanto ai pulsanti della revisione e non si ripete in cima alla pagina.
+    expect(root().querySelectorAll('[role="alert"]')).toHaveLength(1);
+    expect(
+      root().querySelector('app-payslip-review [role="alert"]')?.textContent
+    ).toContain('Esiste già un cedolino per questo mese.');
     expect(root().querySelector('app-payslip-review')).not.toBeNull();
     expect(root().querySelector<HTMLInputElement>('#payslip-net')!.value).toBe('2.100,00');
     expect(root().querySelector<HTMLButtonElement>('.confirm')!.disabled).toBe(false);

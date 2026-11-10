@@ -23,7 +23,8 @@
     </app-section-header>
 
     <p class="status" aria-live="polite">{{ statusText() }}</p>
-    @if (actionError(); as message) {
+    <!-- Con una revisione aperta l'errore sta accanto ai suoi pulsanti. -->
+    @if (!showNewReview() && !editing() && actionError(); as message) {
       <p class="message--error" role="alert">{{ message }}</p>
     }
   </app-panel>
@@ -36,6 +37,7 @@
         [analysis]="analysis()"
         [takenPeriods]="takenPeriods()"
         [busy]="phase() === 'saving'"
+        [error]="actionError()"
         (confirmed)="confirmNew($event)"
         (cancelled)="cancelNew()"
       />
@@ -140,6 +142,7 @@
                 [draft]="detail"
                 [takenPeriods]="takenPeriods()"
                 [busy]="phase() === 'saving'"
+                [error]="actionError()"
                 (confirmed)="confirmEdit($event)"
                 (cancelled)="cancelEdit()"
               />

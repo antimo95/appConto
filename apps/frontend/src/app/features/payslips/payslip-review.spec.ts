@@ -558,4 +558,17 @@ describe('PayslipReview', () => {
 
     expect(cancelled).toBe(1);
   });
+
+  it("mostra l'errore ricevuto, una sola volta, sopra le azioni", async () => {
+    await render();
+    expect(host().querySelector('[role="alert"]')).toBeNull();
+
+    fixture.componentRef.setInput('error', 'Esiste già un cedolino per questo mese.');
+    await fixture.whenStable();
+
+    const alerts = host().querySelectorAll('[role="alert"]');
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0].textContent).toContain('Esiste già un cedolino per questo mese.');
+    expect(alerts[0].nextElementSibling?.classList.contains('actions')).toBe(true);
+  });
 });

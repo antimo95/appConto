@@ -142,6 +142,8 @@ export class PayslipReview {
   readonly analysis = input<PayslipAnalysis | null>(null);
   /** Un salvataggio in corso: niente doppio invio. */
   readonly busy = input(false);
+  /** L'esito negativo di conferma o salvataggio: sta sopra i pulsanti, dove l'utente guarda. */
+  readonly error = input<string | null>(null);
   /**
    * I mesi che hanno già un cedolino in archivio. Il conflitto segue il mese
    * scritto nel campo, non solo quello letto dal PDF: l'utente può correggerlo.
