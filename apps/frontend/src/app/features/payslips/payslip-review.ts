@@ -168,6 +168,8 @@ export class PayslipReview {
   protected readonly replaceExisting = signal(false);
 
   private nextId = 0;
+  /** Vero da quando l'utente ha toccato qualcosa: la pagina lo chiede prima di scartare il modulo. */
+  private dirty = false;
 
   /**
    * Se il mese scritto nel campo è già occupato da un altro cedolino. In
@@ -309,6 +311,12 @@ export class PayslipReview {
       }))
     );
     this.replaceExisting.set(false);
+    this.dirty = false;
+  }
+
+  /** Ci sono modifiche dell'utente non ancora consegnate con «Conferma» o «Salva». */
+  isDirty(): boolean {
+    return this.dirty;
   }
 
   protected inputValue(event: Event): string {
@@ -317,6 +325,7 @@ export class PayslipReview {
 
   protected setScalar(key: ScalarKey, event: Event): void {
     const value = this.inputValue(event);
+    this.dirty = true;
 
     // La sostituzione confermata vale per un mese preciso: cambiato il mese, va richiesta di nuovo.
     if (key === 'period' && value !== this.values().period) {
@@ -327,6 +336,7 @@ export class PayslipReview {
 
   protected setItem(id: number, field: keyof Omit<ItemRow, 'id'>, event: Event): void {
     const value = this.inputValue(event);
+    this.dirty = true;
 
     this.items.update((rows) =>
       rows.map((row) => (row.id === id ? { ...row, [field]: value } : row))
@@ -335,6 +345,7 @@ export class PayslipReview {
 
   protected setLeave(id: number, field: keyof Omit<LeaveRow, 'id'>, event: Event): void {
     const value = this.inputValue(event);
+    this.dirty = true;
 
     this.leaves.update((rows) =>
       rows.map((row) => (row.id === id ? { ...row, [field]: value } : row))
@@ -342,6 +353,7 @@ export class PayslipReview {
   }
 
   protected addItem(): void {
+    this.dirty = true;
     this.items.update((rows) => [
       ...rows,
       {
@@ -357,10 +369,12 @@ export class PayslipReview {
   }
 
   protected removeItem(id: number): void {
+    this.dirty = true;
     this.items.update((rows) => rows.filter((row) => row.id !== id));
   }
 
   protected addLeave(): void {
+    this.dirty = true;
     this.leaves.update((rows) => {
       // Il primo tipo che manca: due saldi dello stesso tipo il backend non li accetta.
       const type = LEAVE_TYPES.find((candidate) => rows.every((row) => row.type !== candidate));
@@ -372,10 +386,12 @@ export class PayslipReview {
   }
 
   protected removeLeave(id: number): void {
+    this.dirty = true;
     this.leaves.update((rows) => rows.filter((row) => row.id !== id));
   }
 
   protected setReplace(event: Event): void {
+    this.dirty = true;
     this.replaceExisting.set((event.target as HTMLInputElement).checked);
   }
 

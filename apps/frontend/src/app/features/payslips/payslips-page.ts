@@ -1,5 +1,13 @@
 import { HttpErrorResponse, httpResource } from '@angular/common/http';
-import { Component, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  HostListener,
+  computed,
+  inject,
+  signal,
+  viewChild
+} from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { formatMonth } from '../../core/format';
@@ -70,6 +78,8 @@ export class PayslipsPage {
   private readonly api = inject(PayslipsApi);
 
   private readonly fileInput = viewChild<ElementRef<HTMLInputElement>>('fileInput');
+  /** La revisione aperta, nuova o in modifica: ce n'è al più una alla volta. */
+  private readonly review = viewChild(PayslipReview);
 
   private readonly params = toSignal(this.route.queryParamMap, {
     initialValue: this.route.snapshot.queryParamMap
@@ -334,6 +344,10 @@ export class PayslipsPage {
   protected cancelNew(): void {
     const analysis = this.analysis();
 
+    if (!this.confirmLeave()) {
+      return;
+    }
+
     if (analysis !== null && !this.expired()) {
       // Il PDF temporaneo scade comunque: se lo scarto fallisce non c'è nulla da dire.
       this.api.discardAnalysis(analysis.id).subscribe({ error: () => undefined });
@@ -354,6 +368,9 @@ export class PayslipsPage {
   }
 
   protected cancelEdit(): void {
+    if (!this.confirmLeave()) {
+      return;
+    }
     this.actionError.set(null);
     this.editing.set(false);
   }
@@ -409,9 +426,37 @@ export class PayslipsPage {
   protected select(period: string): void {
     // Un altro mese chiude la modifica: il modulo non deve passare a un cedolino diverso.
     if (period !== this.selected()?.period) {
+      if (!this.confirmLeave()) {
+        return;
+      }
       this.editing.set(false);
     }
+    this.go(period);
+  }
+
+  /** Navigazione interna senza chiedere nulla: dopo un salvataggio non c'è più niente da scartare. */
+  private go(period: string): void {
     void this.router.navigate([], { relativeTo: this.route, queryParams: { period } });
+  }
+
+  /**
+   * Vero se si può lasciare la revisione: o non c'è nulla da perdere, o l'utente accetta di
+   * scartarlo. Anche i valori conservati dopo una scadenza sono lavoro dell'utente.
+   */
+  confirmLeave(): boolean {
+    return !this.hasUnsavedChanges() || window.confirm('Hai modifiche non salvate. Scartarle?');
+  }
+
+  /** Chiudere la scheda scarta il modulo senza passare dalla rotta: lo chiede il browser. */
+  @HostListener('window:beforeunload', ['$event'])
+  protected warnBeforeUnload(event: BeforeUnloadEvent): void {
+    if (this.hasUnsavedChanges()) {
+      event.preventDefault();
+    }
+  }
+
+  private hasUnsavedChanges(): boolean {
+    return (this.review()?.isDirty() ?? false) || this.retained() !== null;
   }
 
   protected reloadAll(): void {
@@ -427,6 +472,6 @@ export class PayslipsPage {
     if (this.selected()?.id === savedId) {
       this.detail.reload();
     }
-    this.select(period);
+    this.go(period);
   }
 }

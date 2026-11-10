@@ -531,35 +531,203 @@ describe('PayslipsPage', () => {
     await flushDetail(detail());
   });
 
-  it('scegliere un altro mese durante la modifica chiude il modulo e mostra il dettaglio del nuovo mese', async () => {
-    await harness.navigateByUrl('/payslips', PayslipsPage);
-    await loadPage();
-    await flushDetail(detail());
+  describe('modifiche non salvate', () => {
+    const openEdit = async (): Promise<PayslipsPage> => {
+      const page = await harness.navigateByUrl('/payslips', PayslipsPage);
+      await loadPage();
+      await flushDetail(detail());
+      root().querySelector<HTMLButtonElement>('app-payslip-detail .edit')!.click();
+      await settle();
+      return page;
+    };
 
-    root().querySelector<HTMLButtonElement>('app-payslip-detail .edit')!.click();
-    await settle();
-    expect(root().querySelector('app-payslip-review')).not.toBeNull();
+    const otherMonth = async (): Promise<void> => {
+      root().querySelectorAll<HTMLButtonElement>('table.payslips .month')[1].click();
+      await settle();
+    };
 
-    root().querySelectorAll<HTMLButtonElement>('table.payslips .month')[1].click();
-    await settle();
-    await flushDetail({ ...detail(AUGUST), fileName: 'agosto.pdf' });
+    it('un altro mese a modulo non toccato lo chiude senza chiedere nulla', async () => {
+      const confirm = vi.spyOn(window, 'confirm');
+      await openEdit();
 
-    expect(root().querySelector('app-payslip-review')).toBeNull();
-    expect(root().querySelector('app-payslip-detail')?.textContent).toContain('agosto.pdf');
-  });
+      await otherMonth();
+      await flushDetail({ ...detail(AUGUST), fileName: 'agosto.pdf' });
 
-  it('riscegliere il mese in modifica lascia aperto il modulo', async () => {
-    await harness.navigateByUrl('/payslips', PayslipsPage);
-    await loadPage();
-    await flushDetail(detail());
+      expect(confirm).not.toHaveBeenCalled();
+      expect(root().querySelector('app-payslip-review')).toBeNull();
+      expect(root().querySelector('app-payslip-detail')?.textContent).toContain('agosto.pdf');
+    });
 
-    root().querySelector<HTMLButtonElement>('app-payslip-detail .edit')!.click();
-    await settle();
+    it('un altro mese a modulo toccato resta sul modulo se non si conferma', async () => {
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+      await openEdit();
+      await type('#payslip-net', '2.010,00');
 
-    root().querySelectorAll<HTMLButtonElement>('table.payslips .month')[0].click();
-    await settle();
+      await otherMonth();
 
-    expect(root().querySelector('app-payslip-review')).not.toBeNull();
+      expect(confirm).toHaveBeenCalledWith('Hai modifiche non salvate. Scartarle?');
+      expect(root().querySelector('app-payslip-review')).not.toBeNull();
+      expect(router.url).not.toContain('period=2026-08');
+    });
+
+    it('un altro mese a modulo toccato lo chiude se si conferma', async () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      await openEdit();
+      await type('#payslip-net', '2.010,00');
+
+      await otherMonth();
+      await flushDetail({ ...detail(AUGUST), fileName: 'agosto.pdf' });
+
+      expect(root().querySelector('app-payslip-review')).toBeNull();
+      expect(root().querySelector('app-payslip-detail')?.textContent).toContain('agosto.pdf');
+    });
+
+    it('riscegliere lo stesso mese in modifica lascia aperto il modulo senza chiedere', async () => {
+      const confirm = vi.spyOn(window, 'confirm');
+      await openEdit();
+      await type('#payslip-net', '2.010,00');
+
+      root().querySelectorAll<HTMLButtonElement>('table.payslips .month')[0].click();
+      await settle();
+
+      expect(confirm).not.toHaveBeenCalled();
+      expect(root().querySelector('app-payslip-review')).not.toBeNull();
+    });
+
+    it('Annulla chiede conferma solo se la modifica è stata toccata', async () => {
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+      await openEdit();
+
+      root().querySelector<HTMLButtonElement>('.cancel')!.click();
+      await settle();
+      expect(confirm).not.toHaveBeenCalled();
+      expect(root().querySelector('app-payslip-review')).toBeNull();
+
+      root().querySelector<HTMLButtonElement>('app-payslip-detail .edit')!.click();
+      await settle();
+      await type('#payslip-net', '2.010,00');
+      root().querySelector<HTMLButtonElement>('.cancel')!.click();
+      await settle();
+
+      expect(confirm).toHaveBeenCalledTimes(1);
+      expect(root().querySelector('app-payslip-review')).not.toBeNull();
+
+      confirm.mockReturnValue(true);
+      root().querySelector<HTMLButtonElement>('.cancel')!.click();
+      await settle();
+      expect(root().querySelector('app-payslip-review')).toBeNull();
+    });
+
+    it('Annulla su una nuova revisione toccata chiede conferma, su una intatta no', async () => {
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+      await analyzeWith(analysis());
+
+      root().querySelector<HTMLButtonElement>('.cancel')!.click();
+      await settle();
+      expect(confirm).not.toHaveBeenCalled();
+      expectOne('/api/payslip-analyses/a-1', 'DELETE').flush(null, {
+        status: 204,
+        statusText: 'No Content'
+      });
+      await settle();
+
+      await chooseFile(new File(['%PDF'], 'ottobre.pdf', { type: 'application/pdf' }));
+      expectOne('/api/payslip-analyses', 'POST').flush(analysis());
+      await settle();
+      await settle();
+      await type('#payslip-net', '2.100,00');
+      root().querySelector<HTMLButtonElement>('.cancel')!.click();
+      await settle();
+
+      expect(confirm).toHaveBeenCalledTimes(1);
+      expect(root().querySelector('app-payslip-review')).not.toBeNull();
+      http.expectNone((request) => request.method === 'DELETE');
+    });
+
+    it('dopo un salvataggio riuscito non chiede mai di scartare le modifiche', async () => {
+      const confirm = vi.spyOn(window, 'confirm');
+      await openEdit();
+      await type('#payslip-net', '2.010,00');
+      root().querySelector<HTMLButtonElement>('.confirm')!.click();
+      await settle();
+
+      expectOne('/api/payslips/p-9', 'PATCH').flush(detail());
+      await settle();
+      expectOne('/api/payslips').flush({ items: [SEPTEMBER, AUGUST] });
+      expectOne('/api/payslip-summaries').flush(summaries());
+      await settle();
+      await flushDetail(detail());
+
+      expect(confirm).not.toHaveBeenCalled();
+      expect(root().querySelector('app-payslip-review')).toBeNull();
+      expect(router.url).toContain('period=2026-09');
+    });
+
+    it('salvare una nuova revisione toccata, su un altro mese, non chiede di scartarla', async () => {
+      const confirm = vi.spyOn(window, 'confirm');
+      await analyzeWith(analysis());
+      await type('#payslip-net', '2.100,00');
+      root().querySelector<HTMLButtonElement>('.confirm')!.click();
+      await settle();
+
+      const october = summary({ id: 'p-10', period: '2026-10', netCents: 210000 });
+      expectOne('/api/payslips', 'POST').flush(detail(october));
+      await settle();
+      expectOne('/api/payslips').flush({ items: [october] });
+      expectOne('/api/payslip-summaries').flush(EMPTY);
+      await settle();
+      await flushDetail(detail(october));
+
+      expect(confirm).not.toHaveBeenCalled();
+      expect(router.url).toContain('period=2026-10');
+    });
+
+    it('salvare una modifica che cambia il mese non chiede di scartarla', async () => {
+      const confirm = vi.spyOn(window, 'confirm');
+      await openEdit();
+      await type('#payslip-period', '2026-10');
+      root().querySelector<HTMLButtonElement>('.confirm')!.click();
+      await settle();
+
+      const october = summary({ id: 'p-9', period: '2026-10' });
+      expectOne('/api/payslips/p-9', 'PATCH').flush(detail(october));
+      await settle();
+      expectOne('/api/payslips').flush({ items: [october, AUGUST] });
+      expectOne('/api/payslip-summaries').flush(summaries());
+      await settle();
+
+      expect(confirm).not.toHaveBeenCalled();
+      expect(router.url).toContain('period=2026-10');
+      // Un elenco riletto ha oggetti nuovi: il dettaglio dello stesso id può partire più di una volta.
+      http
+        .match((request) => request.url === '/api/payslips/p-9')
+        .filter((request) => !request.cancelled)
+        .forEach((request) => request.flush(detail(october)));
+      await settle();
+    });
+
+    it("confirmLeave (per la rotta) chiede solo se c'è qualcosa da perdere", async () => {
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+      const page = await openEdit();
+      expect(page.confirmLeave()).toBe(true);
+      expect(confirm).not.toHaveBeenCalled();
+
+      await type('#payslip-net', '2.010,00');
+      expect(page.confirmLeave()).toBe(false);
+      expect(confirm).toHaveBeenCalledTimes(1);
+    });
+
+    it('chiudere la scheda con modifiche non salvate chiede al browser di avvisare', async () => {
+      await openEdit();
+      const untouched = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(untouched);
+      expect(untouched.defaultPrevented).toBe(false);
+
+      await type('#payslip-net', '2.010,00');
+      const touched = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(touched);
+      expect(touched.defaultPrevented).toBe(true);
+    });
   });
 
   it('un errore di caricamento dell\'elenco offre di riprovare', async () => {
@@ -922,6 +1090,7 @@ describe('PayslipsPage', () => {
     });
 
     it('Annulla dopo la scadenza chiude la revisione e azzera lo stato di scadenza', async () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
       await expireAfterTyping();
 
       root().querySelector<HTMLButtonElement>('.cancel')!.click();

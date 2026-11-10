@@ -7,6 +7,7 @@ import { LoanCreatePage } from './features/loans/loan-create-page';
 import { LoanDetailPage } from './features/loans/loan-detail-page';
 import { LoansPage } from './features/loans/loans-page';
 import { MerchantsPage } from './features/merchants/merchants-page';
+import type { PayslipsPage } from './features/payslips/payslips-page';
 import { SettingsPage } from './features/settings/settings-page';
 import { TransactionsPage } from './features/transactions/transactions-page';
 
@@ -68,6 +69,9 @@ export const routes: Routes = [
     // riepilogo ferie, e il bundle iniziale è a ridosso del limite di budget.
     loadComponent: () =>
       import('./features/payslips/payslips-page').then((module) => module.PayslipsPage),
+    // Solo il tipo: il componente resta caricato a richiesta.
+    // Lasciare la pagina con una revisione toccata chiede conferma.
+    canDeactivate: [(page: PayslipsPage) => page.confirmLeave()],
     title: 'Cedolini'
   },
   { path: '**', redirectTo: '' }

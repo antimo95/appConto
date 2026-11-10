@@ -571,4 +571,33 @@ describe('PayslipReview', () => {
     expect(alerts[0].textContent).toContain('Esiste già un cedolino per questo mese.');
     expect(alerts[0].nextElementSibling?.classList.contains('actions')).toBe(true);
   });
+
+  describe('isDirty', () => {
+    it("è falso all'inizio, vero dopo aver scritto in un campo, falso con una nuova bozza", async () => {
+      await render();
+      expect(fixture.componentInstance.isDirty()).toBe(false);
+
+      await type(field('net'), '2.100,00');
+      expect(fixture.componentInstance.isDirty()).toBe(true);
+
+      fixture.componentRef.setInput('draft', draft({ netCents: 123400 }));
+      await fixture.whenStable();
+      expect(fixture.componentInstance.isDirty()).toBe(false);
+    });
+
+    it('è vero dopo aver toccato una voce, un saldo o la casella di sostituzione', async () => {
+      const dirtyAfter = async (action: () => void | Promise<void>): Promise<boolean> => {
+        await render(draft(), analysis({ conflict: { payslipId: 'p-1', period: '2026-09' } }));
+        await action();
+        await fixture.whenStable();
+        return fixture.componentInstance.isDirty();
+      };
+
+      expect(await dirtyAfter(() => host().querySelector<HTMLButtonElement>('.add-item')!.click())).toBe(true);
+      expect(await dirtyAfter(() => host().querySelector<HTMLButtonElement>('.remove-item')!.click())).toBe(true);
+      expect(await dirtyAfter(() => host().querySelector<HTMLButtonElement>('.add-leave')!.click())).toBe(true);
+      expect(await dirtyAfter(() => host().querySelector<HTMLButtonElement>('.remove-leave')!.click())).toBe(true);
+      expect(await dirtyAfter(() => host().querySelector<HTMLInputElement>('.conflict input')!.click())).toBe(true);
+    });
+  });
 });
