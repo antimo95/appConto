@@ -32,8 +32,19 @@
   @if (showNewReview()) {
     <app-panel>
       <app-section-header title="Verifica del cedolino" />
+      @if (expired()) {
+        <div class="expired" role="alert">
+          <p class="message--error">
+            L'analisi è scaduta: il PDF non è più sul server. I valori che hai scritto sono
+            conservati.
+          </p>
+          <button type="button" class="secondary" [disabled]="!canUpload()" (click)="openFilePicker()">
+            Ricarica il PDF
+          </button>
+        </div>
+      }
       <app-payslip-review
-        [draft]="analysis()!.draft"
+        [draft]="retained() ?? analysis()!.draft"
         [analysis]="analysis()"
         [takenPeriods]="takenPeriods()"
         [busy]="phase() === 'saving'"

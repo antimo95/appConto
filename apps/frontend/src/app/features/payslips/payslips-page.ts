@@ -1,4 +1,4 @@
-import { httpResource } from '@angular/common/http';
+import { HttpErrorResponse, httpResource } from '@angular/common/http';
 import { Component, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -21,6 +21,7 @@ import {
   LeaveType,
   PayslipAnalysis,
   PayslipComparison,
+  PayslipData,
   PayslipDetail,
   PayslipList,
   PayslipSummaries,
@@ -134,10 +135,19 @@ export class PayslipsPage {
   protected readonly actionError = signal<string | null>(null);
   /** Un'eliminazione è partita e non ha ancora risposto: un secondo clic darebbe un 404. */
   protected readonly deleting = signal(false);
+  /** L'analisi non c'è più sul server (scaduta o persa a un riavvio): serve ricaricare il PDF. */
+  protected readonly expired = signal(false);
+  /** I valori che l'utente aveva digitato quando l'analisi è scaduta: sopravvivono al nuovo PDF. */
+  protected readonly retained = signal<PayslipData | null>(null);
 
-  /** Caricare un secondo PDF mentre se ne analizza o se ne modifica uno sovrapporrebbe i flussi. */
+  /**
+   * Caricare un secondo PDF mentre se ne analizza o se ne modifica uno sovrapporrebbe i flussi;
+   * a analisi scaduta invece è l'unico modo di proseguire.
+   */
   protected readonly canUpload = computed(
-    () => this.phase() === 'idle' && !this.editing() && !this.deleting()
+    () =>
+      (this.phase() === 'idle' && !this.editing() && !this.deleting()) ||
+      (this.phase() === 'reviewing' && this.expired())
   );
   /** Modifica ed Elimina aspettano che nessun'altra richiesta sia in corso. */
   protected readonly canModify = computed(() => this.phase() === 'idle' && !this.deleting());
@@ -265,11 +275,13 @@ export class PayslipsPage {
     this.api.analyze(file).subscribe({
       next: (analysis) => {
         this.analysis.set(analysis);
+        this.expired.set(false);
         this.phase.set('reviewing');
       },
       error: (error: unknown) => {
         this.actionError.set(toErrorMessage(error));
-        this.phase.set('idle');
+        // A analisi scaduta la revisione con i valori digitati deve restare.
+        this.phase.set(this.expired() ? 'reviewing' : 'idle');
       }
     });
   }
@@ -300,12 +312,20 @@ export class PayslipsPage {
       .subscribe({
         next: (saved) => {
           this.analysis.set(null);
+          this.expired.set(false);
+          this.retained.set(null);
           this.phase.set('idle');
           this.afterChange(saved.period, saved.id);
         },
         // La revisione resta aperta: i valori corretti a mano non vanno persi.
         error: (error: unknown) => {
-          this.actionError.set(toErrorMessage(error));
+          // Solo un 404 dice che l'analisi non esiste più: il messaggio è l'avviso con il pulsante.
+          if (error instanceof HttpErrorResponse && error.status === 404) {
+            this.expired.set(true);
+            this.retained.set(result.data);
+          } else {
+            this.actionError.set(toErrorMessage(error));
+          }
           this.phase.set('reviewing');
         }
       });
@@ -314,11 +334,13 @@ export class PayslipsPage {
   protected cancelNew(): void {
     const analysis = this.analysis();
 
-    if (analysis !== null) {
+    if (analysis !== null && !this.expired()) {
       // Il PDF temporaneo scade comunque: se lo scarto fallisce non c'è nulla da dire.
       this.api.discardAnalysis(analysis.id).subscribe({ error: () => undefined });
     }
     this.analysis.set(null);
+    this.expired.set(false);
+    this.retained.set(null);
     this.actionError.set(null);
     this.phase.set('idle');
   }

@@ -840,21 +840,122 @@ describe('PayslipsPage', () => {
     expect(text()).not.toContain('Analisi del cedolino in corso…');
   });
 
-  it("un'analisi scaduta (404) alla conferma mostra il messaggio e lascia la revisione aperta", async () => {
-    await analyzeWith(analysis());
+  describe('analisi scaduta', () => {
+    const NOT_FOUND = {
+      body: { error: 'Analisi non trovata o scaduta: carica di nuovo il PDF.' },
+      init: { status: 404, statusText: 'Not Found' }
+    };
 
-    root().querySelector<HTMLButtonElement>('.confirm')!.click();
-    await settle();
-    expectOne('/api/payslips', 'POST').flush(
-      { error: 'Analisi non trovata o scaduta: carica di nuovo il PDF.' },
-      { status: 404, statusText: 'Not Found' }
-    );
-    await settle();
+    /** Rivede l'analisi, corregge il netto, conferma e riceve il 404 della scadenza. */
+    const expireAfterTyping = async (): Promise<void> => {
+      await analyzeWith(analysis());
+      await type('#payslip-net', '2.100,00');
+      root().querySelector<HTMLButtonElement>('.confirm')!.click();
+      await settle();
+      expectOne('/api/payslips', 'POST').flush(NOT_FOUND.body, NOT_FOUND.init);
+      await settle();
+    };
 
-    expect(root().querySelector('[role="alert"]')?.textContent).toContain(
-      'Analisi non trovata o scaduta: carica di nuovo il PDF.'
-    );
-    expect(root().querySelector('app-payslip-review')).not.toBeNull();
+    const reloadButton = (): HTMLButtonElement | undefined =>
+      [...root().querySelectorAll<HTMLButtonElement>('app-panel button')].find(
+        (button) => button.textContent?.trim() === 'Ricarica il PDF'
+      );
+
+    it('un 404 alla conferma avvisa della scadenza e conserva i valori digitati', async () => {
+      await expireAfterTyping();
+
+      expect(text()).toContain("L'analisi è scaduta");
+      expect(reloadButton()).toBeDefined();
+      expect(root().querySelector('app-payslip-review')).not.toBeNull();
+      expect(root().querySelector<HTMLInputElement>('#payslip-net')!.value).toBe('2100,00');
+    });
+
+    it('«Ricarica il PDF» apre il selettore dei file', async () => {
+      await expireAfterTyping();
+      const picker = vi.spyOn(
+        root().querySelector<HTMLInputElement>('input[type="file"]')!,
+        'click'
+      );
+
+      reloadButton()!.click();
+
+      expect(picker).toHaveBeenCalledTimes(1);
+    });
+
+    it("con il nuovo PDF l'avviso sparisce e restano i valori digitati, non quelli della nuova bozza", async () => {
+      await expireAfterTyping();
+
+      await chooseFile(new File(['%PDF'], 'ottobre-bis.pdf', { type: 'application/pdf' }));
+      const fresh = analysis();
+      expectOne('/api/payslip-analyses', 'POST').flush({
+        ...fresh,
+        id: 'a-2',
+        draft: { ...fresh.draft, netCents: 111100 }
+      });
+      await settle();
+      await settle();
+
+      expect(text()).not.toContain("L'analisi è scaduta");
+      expect(root().querySelector<HTMLInputElement>('#payslip-net')!.value).toBe('2100,00');
+
+      root().querySelector<HTMLButtonElement>('.confirm')!.click();
+      await settle();
+      const save = expectOne('/api/payslips', 'POST');
+      expect(save.request.body.analysisId).toBe('a-2');
+      expect(save.request.body.netCents).toBe(210000);
+      save.flush({ error: 'x' }, { status: 500, statusText: 'Error' });
+      await settle();
+    });
+
+    it('se il nuovo PDF viene rifiutato resta la revisione con i valori digitati', async () => {
+      await expireAfterTyping();
+
+      await chooseFile(new File(['%PDF'], 'rotto.pdf', { type: 'application/pdf' }));
+      expectOne('/api/payslip-analyses', 'POST').flush(
+        { error: 'Il file non è un PDF valido oppure è danneggiato.' },
+        { status: 400, statusText: 'Bad Request' }
+      );
+      await settle();
+
+      expect(root().querySelector<HTMLInputElement>('#payslip-net')!.value).toBe('2100,00');
+      expect(text()).toContain("L'analisi è scaduta");
+    });
+
+    it('Annulla dopo la scadenza chiude la revisione e azzera lo stato di scadenza', async () => {
+      await expireAfterTyping();
+
+      root().querySelector<HTMLButtonElement>('.cancel')!.click();
+      await settle();
+      // L'analisi è già scaduta: non c'è nulla da scartare sul server.
+      http.expectNone((request) => request.method === 'DELETE');
+      expect(root().querySelector('app-payslip-review')).toBeNull();
+
+      await chooseFile(new File(['%PDF'], 'ottobre.pdf', { type: 'application/pdf' }));
+      expectOne('/api/payslip-analyses', 'POST').flush({ ...analysis(), id: 'a-3' });
+      await settle();
+      await settle();
+
+      expect(text()).not.toContain("L'analisi è scaduta");
+      expect(root().querySelector<HTMLInputElement>('#payslip-net')!.value).toBe('2080,00');
+    });
+
+    it("un 500 alla conferma non mostra l'avviso di scadenza", async () => {
+      await analyzeWith(analysis());
+
+      root().querySelector<HTMLButtonElement>('.confirm')!.click();
+      await settle();
+      expectOne('/api/payslips', 'POST').flush(
+        { error: 'Errore del server.' },
+        { status: 500, statusText: 'Error' }
+      );
+      await settle();
+
+      expect(text()).not.toContain("L'analisi è scaduta");
+      expect(reloadButton()).toBeUndefined();
+      expect(root().querySelector('app-payslip-review [role="alert"]')?.textContent).toContain(
+        'Errore del server.'
+      );
+    });
   });
 
   it("se lo scarto dell'analisi fallisce la revisione si chiude lo stesso, senza errori", async () => {
