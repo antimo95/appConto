@@ -501,6 +501,16 @@ describe('analisi in memoria: annullamento, scadenza, limite, riavvio', () => {
     assert.deepEqual(fileEstranei(), []);
   });
 
+  it('annullare un\'analisi scaduta dice che non esiste più', async () => {
+    let now = Date.parse('2026-11-01T10:00:00Z');
+    const service = serviceWith({ now: () => now });
+
+    const stale = await service.analyze(syntheticPayslipPdf({ month: 'Febbraio 2026' }), 'febbraio.pdf');
+    now += ANALYSIS_TTL_MS + 1;
+
+    expectError('NOT_FOUND', () => service.discardAnalysis(stale.id), /scaduta/);
+  });
+
   it('il limite è di dieci analisi in attesa', () => {
     assert.equal(MAX_PENDING_ANALYSES, 10);
   });

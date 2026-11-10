@@ -193,6 +193,9 @@ export function createPayslipsService(deps: PayslipsServiceDeps) {
 
     /** Annulla un'analisi: il PDF tenuto in memoria viene dimenticato subito. */
     discardAnalysis(id: string): void {
+      // Prima le scadute: `delete` dà esito positivo anche per un'analisi
+      // scaduta ma ancora in memoria, e l'utente non deve vederla "annullata".
+      analyses.evictExpired(deps.now());
       if (!analyses.delete(id)) {
         throw new NotFoundError('Analisi non trovata o scaduta.');
       }
@@ -209,6 +212,7 @@ export function createPayslipsService(deps: PayslipsServiceDeps) {
      * nuovo. Solo dopo il commit l'analisi viene dimenticata.
      */
     create(input: unknown): PayslipDetailViewModel {
+      analyses.evictExpired(deps.now());
       const data = parseOrThrow(newPayslipSchema, input, 'Dati del cedolino non validi.');
 
       const analysis = analyses.get(data.analysisId, deps.now());
