@@ -132,6 +132,15 @@ export class PayslipsPage {
   protected readonly analysis = signal<PayslipAnalysis | null>(null);
   protected readonly editing = signal(false);
   protected readonly actionError = signal<string | null>(null);
+  /** Un'eliminazione è partita e non ha ancora risposto: un secondo clic darebbe un 404. */
+  protected readonly deleting = signal(false);
+
+  /** Caricare un secondo PDF mentre se ne analizza o se ne modifica uno sovrapporrebbe i flussi. */
+  protected readonly canUpload = computed(
+    () => this.phase() === 'idle' && !this.editing() && !this.deleting()
+  );
+  /** Modifica ed Elimina aspettano che nessun'altra richiesta sia in corso. */
+  protected readonly canModify = computed(() => this.phase() === 'idle' && !this.deleting());
 
   protected readonly formatMonth = formatMonth;
   protected readonly euros = centsToEuros;
@@ -229,6 +238,9 @@ export class PayslipsPage {
   }
 
   protected openFilePicker(): void {
+    if (!this.canUpload()) {
+      return;
+    }
     this.fileInput()?.nativeElement.click();
   }
 
@@ -312,6 +324,9 @@ export class PayslipsPage {
   }
 
   protected startEdit(): void {
+    if (!this.canModify()) {
+      return;
+    }
     this.actionError.set(null);
     this.editing.set(true);
   }
@@ -344,7 +359,7 @@ export class PayslipsPage {
 
   protected deleteSelected(): void {
     const detail = this.detailData();
-    if (detail === null) {
+    if (detail === null || !this.canModify()) {
       return;
     }
 
@@ -353,14 +368,19 @@ export class PayslipsPage {
     }
 
     this.actionError.set(null);
+    this.deleting.set(true);
     this.api.remove(detail.id).subscribe({
       next: () => {
+        this.deleting.set(false);
         this.list.reload();
         this.summaries.reload();
         // Senza `period` la selezione torna al mese più recente rimasto.
         void this.router.navigate([], { relativeTo: this.route, queryParams: { period: null } });
       },
-      error: (error: unknown) => this.actionError.set(toErrorMessage(error))
+      error: (error: unknown) => {
+        this.deleting.set(false);
+        this.actionError.set(toErrorMessage(error));
+      }
     });
   }
 

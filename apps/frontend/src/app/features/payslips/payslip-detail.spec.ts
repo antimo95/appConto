@@ -54,6 +54,17 @@ describe('PayslipDetailView', () => {
     expect(meta).toContain('2000,00');
   });
 
+  it('con busy Modifica ed Elimina sono disabilitati', async () => {
+    const fixture = TestBed.createComponent(PayslipDetailView);
+    fixture.componentRef.setInput('detail', detail());
+    fixture.componentRef.setInput('busy', true);
+    await fixture.whenStable();
+    const host = fixture.nativeElement as HTMLElement;
+
+    expect(host.querySelector<HTMLButtonElement>('.edit')!.disabled).toBe(true);
+    expect(host.querySelector<HTMLButtonElement>('.remove')!.disabled).toBe(true);
+  });
+
   it('i valori assenti compaiono come trattino', async () => {
     const host = await render(detail({ employer: null, workedHours: null }));
     const meta = host.querySelector('dl.meta')!;

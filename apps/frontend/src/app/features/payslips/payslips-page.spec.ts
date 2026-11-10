@@ -414,6 +414,52 @@ describe('PayslipsPage', () => {
     expect(root().querySelector('app-payslip-review')).toBeNull();
   });
 
+  it('ad archivio vuoto, durante l\'analisi, lo stato vuoto non apre un secondo selettore', async () => {
+    await harness.navigateByUrl('/payslips', PayslipsPage);
+    await loadPage([], { from: null, to: null, trend: [], comparisons: [] });
+
+    await chooseFile(new File(['%PDF'], 'ottobre.pdf', { type: 'application/pdf' }));
+    const input = root().querySelector<HTMLInputElement>('input[type="file"]')!;
+    const picker = vi.spyOn(input, 'click');
+
+    root().querySelector<HTMLButtonElement>('app-empty-state button')!.click();
+    await settle();
+
+    expect(picker).not.toHaveBeenCalled();
+    expectOne('/api/payslip-analyses', 'POST').flush(analysis());
+  });
+
+  it('due clic ravvicinati su Elimina inviano un solo DELETE', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    await harness.navigateByUrl('/payslips', PayslipsPage);
+    await loadPage();
+    await flushDetail(detail());
+
+    const remove = root().querySelector<HTMLButtonElement>('app-payslip-detail .remove')!;
+    remove.click();
+    remove.click();
+    await settle();
+
+    expectOne('/api/payslips/p-9', 'DELETE').flush(null, { status: 204, statusText: 'No Content' });
+    await settle();
+    expectOne('/api/payslips').flush({ items: [AUGUST] });
+    expectOne('/api/payslip-summaries').flush({ from: null, to: null, trend: [], comparisons: [] });
+    await settle();
+    await flushDetail(detail(AUGUST));
+  });
+
+  it('durante l\'analisi Modifica ed Elimina del dettaglio sono disabilitati', async () => {
+    await harness.navigateByUrl('/payslips', PayslipsPage);
+    await loadPage();
+    await flushDetail(detail());
+
+    await chooseFile(new File(['%PDF'], 'ottobre.pdf', { type: 'application/pdf' }));
+
+    expect(root().querySelector<HTMLButtonElement>('app-payslip-detail .edit')!.disabled).toBe(true);
+    expect(root().querySelector<HTMLButtonElement>('app-payslip-detail .remove')!.disabled).toBe(true);
+    expectOne('/api/payslip-analyses', 'POST').flush(analysis());
+  });
+
   it('annullare la revisione scarta l\'analisi', async () => {
     await harness.navigateByUrl('/payslips', PayslipsPage);
     await loadPage([], { from: null, to: null, trend: [], comparisons: [] });

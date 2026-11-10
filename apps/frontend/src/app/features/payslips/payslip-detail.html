@@ -70,8 +70,8 @@
 </dl>
 
 <div class="actions">
-  <button type="button" class="secondary edit" (click)="edit.emit()">Modifica</button>
-  <button type="button" class="danger remove" (click)="remove.emit()">Elimina</button>
+  <button type="button" class="secondary edit" [disabled]="busy()" (click)="edit.emit()">Modifica</button>
+  <button type="button" class="danger remove" [disabled]="busy()" (click)="remove.emit()">Elimina</button>
   @if (d.hasDocument) {
     <a class="document" [href]="documentUrl()" target="_blank" rel="noopener">Apri PDF</a>
   }

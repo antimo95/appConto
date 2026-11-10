@@ -20,6 +20,8 @@ import { PayslipDetail } from './payslip.model';
 })
 export class PayslipDetailView {
   readonly detail = input.required<PayslipDetail>();
+  /** Un'altra richiesta è in corso: Modifica ed Elimina aspettano. */
+  readonly busy = input(false);
 
   readonly edit = output<void>();
   readonly remove = output<void>();

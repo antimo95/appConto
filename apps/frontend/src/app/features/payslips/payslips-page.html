@@ -6,7 +6,7 @@
         <button
           type="button"
           class="upload"
-          [disabled]="phase() !== 'idle' || editing()"
+          [disabled]="!canUpload()"
           (click)="openFilePicker()"
         >
           Carica cedolino
@@ -146,6 +146,7 @@
             } @else {
               <app-payslip-detail
                 [detail]="detail"
+                [busy]="!canModify()"
                 (edit)="startEdit()"
                 (remove)="deleteSelected()"
               />
