@@ -29,6 +29,7 @@ const { config } = await import('../../config.js');
 const { openSqlite } = await import('../../db/sqlite.js');
 const { syntheticPayslipPdf } = await import('./testing/payslip-fixtures.js');
 const { auditPayslipDocuments } = await import('./payslip-documents.audit.js');
+const { migrateUntil } = await import('./testing/migrate-until.js');
 const featureIndex = await import('./index.js');
 
 after(() => {
@@ -114,6 +115,31 @@ describe('database senza le tabelle dei cedolini', () => {
     sqlite.close();
 
     assert.deepEqual(audit(file), { entries: [], withoutDocument: 0, mismatched: [] });
+  });
+});
+
+describe('database dello schema 0010, con i PDF ancora su disco', () => {
+  it('ogni cedolino risulta senza documento, senza segnalare errori', () => {
+    contatore += 1;
+    const file = path.join(radice, `archivio-${String(contatore)}.sqlite`);
+    migrateUntil(file, 10);
+
+    const scrittura = openSqlite(file);
+    try {
+      for (const [id, period] of [[ID_A, '2026-01'], [ID_B, '2026-02']] as const) {
+        scrittura
+          .prepare(
+            `insert into payslips (id, period, employer, file_name, sha256, stored_path, imported_at, parser_id,
+               total_earnings_cents, total_deductions_cents, net_cents)
+             values (?, ?, null, 'cedolino.pdf', ?, 'payslips/vecchio.pdf', '2026-11-04T10:00:00.000Z', 'manual', 1, 0, 1)`,
+          )
+          .run(id, period, `hash-${id}`);
+      }
+    } finally {
+      scrittura.close();
+    }
+
+    assert.deepEqual(audit(file), { entries: [], withoutDocument: 2, mismatched: [] });
   });
 });
 

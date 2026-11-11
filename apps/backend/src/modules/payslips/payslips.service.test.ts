@@ -32,7 +32,7 @@ const { DomainError } = await import('../../shared/errors.js');
 const { transactionsService } = await import('../transactions/index.js');
 const { loansService, DEFAULT_LOAN_QUERY } = await import('../loans/index.js');
 const { buildPdf, syntheticPayslipPdf } = await import('./testing/payslip-fixtures.js');
-const { ANALYSIS_TTL_MS, createPayslipsService, payslipsService } = await import('./payslips.service.js');
+const { ANALYSIS_TTL_MS, cleanFileName, createPayslipsService, payslipsService } = await import('./payslips.service.js');
 const { MAX_PENDING_ANALYSES, createAnalysisStore } = await import('./payslip-analysis.store.js');
 const { payslipsRepository } = await import('./payslips.repository.js');
 const { PAYSLIP_PARSERS } = await import('./parsing/parsers.js');
@@ -577,6 +577,28 @@ describe('analisi in memoria: annullamento, scadenza, limite, riavvio', () => {
     expectError('NOT_FOUND', () => confirm(analysis, {}, dopoIlRiavvio), /carica di nuovo il PDF/);
     assert.equal(payslipsService.list({ from: '2024-11', to: '2024-11', sortDirection: null }).items.length, 0);
     assert.deepEqual(fileEstranei(), []);
+  });
+});
+
+describe('nome del file', () => {
+  it('toglie le cartelle, anche con la barra rovesciata', () => {
+    assert.equal(cleanFileName('..\\..\\x.pdf'), 'x.pdf');
+    assert.equal(cleanFileName('../../x.pdf'), 'x.pdf');
+  });
+
+  it('toglie i caratteri di controllo', () => {
+    assert.equal(cleanFileName('a\u0000b\u001f.pdf'), 'ab.pdf');
+  });
+
+  it('taglia a 200 caratteri', () => {
+    assert.equal(cleanFileName('a'.repeat(300)).length, 200);
+  });
+
+  it('un nome vuoto, assente o fatto solo di controlli è quello predefinito', () => {
+    assert.equal(cleanFileName(''), 'cedolino.pdf');
+    assert.equal(cleanFileName(null), 'cedolino.pdf');
+    assert.equal(cleanFileName(undefined), 'cedolino.pdf');
+    assert.equal(cleanFileName('\u0000\u001f'), 'cedolino.pdf');
   });
 });
 

@@ -12,7 +12,8 @@ process.env.DATABASE_FILE = path.join(dataRoot, 'database.sqlite');
 
 const { createApp } = await import('../../app.js');
 const { config } = await import('../../config.js');
-const { closeDatabase, runMigrations } = await import('../../db/client.js');
+const { closeDatabase, db, runMigrations } = await import('../../db/client.js');
+const { sql } = await import('drizzle-orm');
 const { syntheticPayslipPdf } = await import('./testing/payslip-fixtures.js');
 
 runMigrations();
@@ -143,6 +144,53 @@ describe('POST /payslip-analyses', () => {
   });
 });
 
+describe('nome del file nell\'intestazione', () => {
+  const nomeSalvato = async (mese: string, intestazioni: Record<string, string>): Promise<string> => {
+    const risposta = await chiama('POST', '/payslip-analyses', {
+      pdf: syntheticPayslipPdf({ month: mese }),
+      headers: intestazioni,
+    });
+    assert.equal(risposta.status, 201, JSON.stringify(risposta.body));
+
+    return (risposta.body as Analisi).fileName;
+  };
+
+  it('senza intestazione X-File-Name il nome è quello predefinito', async () => {
+    assert.equal(await nomeSalvato('Aprile 2025', {}), 'cedolino.pdf');
+  });
+
+  it('un % malformato non fa fallire la richiesta: resta com\'è, come etichetta', async () => {
+    assert.equal(await nomeSalvato('Maggio 2025', { 'X-File-Name': '100%.pdf' }), '100%.pdf');
+  });
+
+  it('caratteri di controllo codificati e percorsi diventano un\'etichetta innocua', async () => {
+    assert.equal(await nomeSalvato('Giugno 2025', { 'X-File-Name': encodeURIComponent('a\u0000b\u001f.pdf') }), 'ab.pdf');
+    assert.equal(await nomeSalvato('Luglio 2025', { 'X-File-Name': encodeURIComponent('..\\x.pdf') }), 'x.pdf');
+  });
+});
+
+describe('perimetro locale', () => {
+  const pdf = syntheticPayslipPdf({ month: 'Agosto 2025' });
+
+  it('403 se la richiesta dichiara un\'origine estranea', async () => {
+    const risposta = await chiama('POST', '/payslip-analyses', { pdf, headers: { Origin: 'https://evil.example' } });
+
+    assert.equal(risposta.status, 403);
+    assert.match(errore(risposta), /Origine non consentita/);
+  });
+
+  it('403 se il browser dichiara la richiesta cross-site', async () => {
+    const risposta = await chiama('POST', '/payslip-analyses', { pdf, headers: { 'Sec-Fetch-Site': 'cross-site' } });
+
+    assert.equal(risposta.status, 403);
+    assert.match(errore(risposta), /contesto esterno/);
+  });
+
+  it('un rifiuto non ha analizzato nulla: lo stesso PDF si analizza poi una sola volta', async () => {
+    assert.equal((await chiama('POST', '/payslip-analyses', { pdf })).status, 201);
+  });
+});
+
 describe('ciclo di vita di un cedolino', () => {
   let ottobre: Dettaglio;
 
@@ -245,6 +293,23 @@ describe('ciclo di vita di un cedolino', () => {
     assert.equal(risposta.status, 200);
     const bytes = Buffer.from(await risposta.arrayBuffer());
     assert.ok(bytes.equals(syntheticPayslipPdf({ month: 'Ottobre 2025' })));
+  });
+
+  it('GET /payslips/:id/document: 404 con il messaggio del service se il documento manca', async () => {
+    const analisi = await analizza(syntheticPayslipPdf({ month: 'Novembre 2025' }));
+    const creato = await chiama('POST', '/payslips', { json: { analysisId: analisi.id, ...analisi.draft } });
+    assert.equal(creato.status, 201, JSON.stringify(creato.body));
+    const { id } = creato.body as Dettaglio;
+
+    // Il caso di un cedolino della versione precedente il cui file non è stato ritrovato.
+    db.run(sql`delete from payslip_documents where payslip_id = ${id}`);
+
+    const risposta = await chiama('GET', `/payslips/${id}/document`);
+    assert.equal(risposta.status, 404);
+    assert.match(errore(risposta), /non è più disponibile/);
+    assert.equal((await chiama('GET', `/payslips/${id}`)).status, 200);
+
+    await chiama('DELETE', `/payslips/${id}`);
   });
 
   it('PATCH /payslips/:id corregge; 400 se non valido, 409 se il mese è occupato', async () => {
