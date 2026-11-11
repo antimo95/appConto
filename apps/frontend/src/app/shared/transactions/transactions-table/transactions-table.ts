@@ -15,6 +15,7 @@ import type {
   TransactionsTableSortDirection,
   TransactionsTableSortField,
   TransactionsTableTypeChange,
+  TransactionsTableTypeLock,
 } from './transactions-table.model';
 
 /** Le colonne della tabella; `field` è `null` dove non ha senso ordinare. */
@@ -130,6 +131,9 @@ export class TransactionsTable<R extends TransactionsTableRow = TransactionsTabl
   /** La riga con un salvataggio in corso: i suoi controlli restano disabilitati. */
   readonly savingId = input<string | null>(null);
 
+  /** I vincoli sul tipo, per identificativo di riga. */
+  readonly typeLocks = input<ReadonlyMap<string, TransactionsTableTypeLock<R['type']>>>(new Map());
+
   /** L'ultimo errore di salvataggio, mostrato sopra la tabella. */
   readonly error = input<string | null>(null);
 
@@ -191,6 +195,13 @@ export class TransactionsTable<R extends TransactionsTableRow = TransactionsTabl
   /** Se la riga è selezionata. */
   protected isSelected(transaction: R): boolean {
     return this.selectedIds().has(transaction.id);
+  }
+
+  /** Il vincolo che blocca il tipo della riga: solo in modifica, e solo se il tipo è già uno di quelli richiesti. */
+  protected typeLock(transaction: R): TransactionsTableTypeLock<R['type']> | null {
+    const lock = this.typeLocks().get(transaction.id);
+
+    return this.editable() && lock?.requiredTypes.includes(transaction.type) === true ? lock : null;
   }
 
   /** Se la riga ha un salvataggio in corso; in sola lettura non succede mai. */

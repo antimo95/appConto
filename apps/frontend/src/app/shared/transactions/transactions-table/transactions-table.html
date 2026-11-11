@@ -87,14 +87,19 @@
             }
           </td>
           <td class="type">
+            @let lock = typeLock(transaction);
             <app-select
               [options]="typeOptions()"
               [value]="transaction.type"
               [readonly]="!editable()"
-              [disabled]="isSaving(transaction)"
+              [disabled]="isSaving(transaction) || lock !== null"
               [ariaLabel]="'Tipo di ' + transaction.description"
+              [ariaDescribedBy]="lock === null ? null : 'type-lock-' + transaction.id"
               (valueChange)="changeType(transaction, $event)"
             />
+            @if (lock !== null) {
+              <span class="type-lock" [id]="'type-lock-' + transaction.id">{{ lock.reason }}</span>
+            }
           </td>
           <td class="category">
             @if (transaction.merchant; as merchant) {

@@ -343,6 +343,7 @@ describe('TransactionsPage', () => {
           transactionId: '1',
           loanId: 'loan-1',
           role: 'ORIGIN',
+          requiredType: 'LOAN',
           borrowerName: 'Marco',
           amount: 100,
           remainingAmount: 100,
@@ -363,6 +364,70 @@ describe('TransactionsPage', () => {
     expect(celle[0].querySelector('a.create')?.textContent?.trim()).toBe('+ Aggiungi');
     // Il secondo non ne ha: propone di crearlo.
     expect(celle[1].querySelector('a.create')?.textContent?.trim()).toBe('Crea prestito');
+  });
+
+  /*
+   * LO1 e D9 vengono dal backend come `requiredType` su ogni legame. La
+   * pagina non decide nulla: blocca la select solo se il tipo è già quello
+   * richiesto, e un'origine legacy con un altro tipo resta correggibile.
+   */
+  it('il tipo di un movimento collegato è bloccato, con il motivo; una riga legacy resta modificabile', async () => {
+    await open('/transactions');
+    const [request] = http.match((candidate) =>
+      candidate.url.startsWith(`${API_BASE_URL}/transactions`)
+    );
+    request!.flush(
+      page({
+        items: [
+          { ...transaction('1', 'ANTICIPO A MARCO', -100), type: 'LOAN' },
+          { ...transaction('2', 'ANTICIPO A LUCA', -50), type: 'EXPENSE' },
+          { ...transaction('3', 'RIENTRO MARCO', 40), type: 'INCOME' },
+          { ...transaction('4', 'SPESA LIBERA', -20), type: 'EXPENSE' }
+        ]
+      })
+    );
+    await settle();
+    for (const lookup of http.match(`${API_BASE_URL}/categories`)) {
+      lookup.flush([]);
+    }
+    for (const lookup of http.match(`${API_BASE_URL}/merchants/summary`)) {
+      lookup.flush([]);
+    }
+    const legame = (transactionId: string, role: 'ORIGIN' | 'REPAYMENT', borrowerName: string) => ({
+      transactionId,
+      loanId: `loan-${borrowerName}`,
+      role,
+      requiredType: role === 'ORIGIN' ? 'LOAN' : 'INCOME',
+      borrowerName,
+      amount: 100,
+      remainingAmount: 60,
+      status: 'OPEN'
+    });
+    http.expectOne(`${API_BASE_URL}/loans/links`).flush({
+      links: [legame('1', 'ORIGIN', 'Marco'), legame('2', 'ORIGIN', 'Luca'), legame('3', 'REPAYMENT', 'Marco')]
+    });
+    await settle();
+
+    const root = harness.routeNativeElement!;
+    const riga = (n: number): string => `app-transactions-table tbody tr:nth-child(${n}) td.type`;
+
+    const bloccata = selectTrigger(root, riga(1));
+    expect(bloccata.disabled).toBe(true);
+    const motivo = root.querySelector(`#${bloccata.getAttribute('aria-describedby')}`);
+    expect(motivo?.textContent).toContain('prestito a Marco');
+
+    // Origine legacy: tipo diverso da quello richiesto, quindi si può riportarla a LOAN.
+    expect(selectTrigger(root, riga(2)).disabled).toBe(false);
+    expect(root.querySelector(`${riga(2)} .type-lock`)).toBeNull();
+
+    const restituzione = selectTrigger(root, riga(3));
+    expect(restituzione.disabled).toBe(true);
+    expect(root.querySelector(`${riga(3)} .type-lock`)?.textContent).toContain(
+      'restituzione del prestito a Marco'
+    );
+
+    expect(selectTrigger(root, riga(4)).disabled).toBe(false);
+    expect(selectTrigger(root, riga(4)).getAttribute('aria-describedby')).toBeNull();
   });
 
   // Prima la tabella ricaricava le categorie per conto suo, appena resa. Ora

@@ -294,6 +294,17 @@ describe('TransactionsTable', () => {
 
       expect(host().querySelector('tbody tr.saving')).toBeNull();
     });
+
+    it('ignora `typeLocks`: nessun motivo e nessun aria-describedby', async () => {
+      fixture.componentRef.setInput(
+        'typeLocks',
+        new Map([['1', { requiredTypes: ['EXPENSE'], reason: 'Collegato a: prestito a Marco.' }]]),
+      );
+      await render([transaction('1', -300)]);
+
+      expect(host().querySelector('.type-lock')).toBeNull();
+      expect(host().querySelector('td.type [aria-describedby]')).toBeNull();
+    });
   });
 
   describe('in modifica', () => {

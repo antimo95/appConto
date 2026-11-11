@@ -231,6 +231,8 @@ describe('correggere il tipo del movimento non fa contare due volte', () => {
     });
     assert.equal(measure().expenses, 890, 'con il prestito, 890');
 
+    // Senza `dependents`: simula un archivio con il tipo cambiato prima di
+    // LO1, che oggi la rotta rifiuterebbe con 409.
     transactionsService.updateType(origin.id, 'EXPENSE');
     const state = measure();
 

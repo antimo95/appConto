@@ -56,6 +56,10 @@
               <button type="button" class="ghost" [disabled]="deleting()" (click)="deleteCancelled.emit()">
                 Annulla
               </button>
+              <!-- I1: la cancellazione non cambia la deduplicazione dell'import. -->
+              <p class="message reimport">
+                Se reimporti un estratto conto che li contiene, questi movimenti verranno importati di nuovo.
+              </p>
             } @else {
               <button type="button" class="danger" (click)="deleteRequested.emit()">Elimina</button>
               <button type="button" class="ghost" (click)="selectionCleared.emit()">
@@ -84,6 +88,7 @@
         [selectable]="selectable()"
         [selectedIds]="selectedIds()"
         [savingId]="savingId()"
+        [typeLocks]="typeLocks()"
         [error]="editError()"
         [extraColumn]="extraColumn()"
         (sortSelected)="sortSelected.emit($event)"

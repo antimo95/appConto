@@ -11,8 +11,9 @@ import { merchants } from '../merchants/merchants.schema.js';
  * `fingerprint` è l'identità del movimento ed è univoco: è il database a
  * garantire che la stessa transazione non venga inserita due volte.
  *
- * `merchants` viene importato solo per dichiarare il vincolo di integrità
- * referenziale: a runtime il repository interroga esclusivamente questa tabella.
+ * `merchants` viene importato per dichiarare il vincolo di integrità
+ * referenziale. Il repository scrive solo su questa tabella, ma in lettura la
+ * unisce a `merchants` e `categories` per la ricerca e i filtri.
  */
 export const transactions = sqliteTable('transactions', {
   id: text('id').primaryKey(),

@@ -297,6 +297,21 @@ describe('TransactionsTablePanel', () => {
       expect(host.events).toEqual(['deleteConfirmed', 'deleteCancelled']);
     });
 
+    // I1: cancellare non impedisce di reimportare. Va detto prima di confermare.
+    it('la conferma avverte che un nuovo import li riporterà, e solo la conferma', async () => {
+      const avviso = 'Se reimporti un estratto conto che li contiene, questi movimenti verranno importati di nuovo.';
+      host.selectable.set(true);
+      host.selectedIds.set(new Set(['1']));
+      await settle();
+
+      expect(el.querySelector('.selection')?.textContent).not.toContain(avviso);
+
+      host.confirmingDelete.set(true);
+      await settle();
+
+      expect(el.querySelector('.selection .reimport')?.textContent?.trim()).toBe(avviso);
+    });
+
     it('resta per mostrare un esito anche a selezione vuota', async () => {
       host.selectable.set(true);
       host.deleteDone.set('2 movimenti eliminati.');

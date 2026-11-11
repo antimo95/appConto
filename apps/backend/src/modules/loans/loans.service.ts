@@ -431,6 +431,8 @@ export const loansService = {
         transactionId,
         loanId: aggregate.id,
         role,
+        // LO1: l'origine resta un prestito; D9: la restituzione resta un'entrata.
+        requiredType: role === 'ORIGIN' ? 'LOAN' : 'INCOME',
         borrowerName: aggregate.borrowerName,
         amount: aggregate.amountCents / 100,
         remainingAmount: remaining / 100,
@@ -474,8 +476,11 @@ export const loansService = {
           link.role === 'ORIGIN'
             ? `prestito a ${link.borrowerName}`
             : `restituzione del prestito a ${link.borrowerName}`,
-        // D9: un accredito collegato a una restituzione deve restare un'entrata.
-        requiresIncome: link.role === 'REPAYMENT',
+        requiredType: link.requiredType,
+        howToChange:
+          link.role === 'ORIGIN'
+            ? 'Il tipo resta «prestito» finché il prestito esiste: rimuovi prima le restituzioni ed elimina il prestito, poi correggi il tipo.'
+            : "Deve restare un'entrata: elimina prima quel collegamento, poi correggi il tipo.",
       }));
   },
 

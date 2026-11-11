@@ -106,7 +106,8 @@
   }
 
   /* Il nome della banca resta visibile quando il merchant è stato rinominato. */
-  .merchant .original {
+  .merchant .original,
+  .type .type-lock {
     @include typography.text('caption');
 
     display: block;

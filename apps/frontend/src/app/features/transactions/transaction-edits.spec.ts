@@ -101,6 +101,20 @@ describe('createTransactionEdits', () => {
     expect(saved).toBe(1);
   });
 
+  // LO1: la rete di sicurezza se la select non era bloccata (legami non ancora caricati).
+  it('il 409 di un movimento collegato a un prestito è mostrato con il messaggio del backend', () => {
+    edits.changeType(transaction(), 'EXPENSE');
+
+    http.expectOne(`${API_BASE_URL}/transactions/1/type`).flush(
+      // La forma di `error-handler.ts` per gli errori di dominio.
+      { error: 'Il movimento è collegato a: prestito a Marco. Il tipo resta «prestito» finché il prestito esiste.' },
+      { status: 409, statusText: 'Conflict' },
+    );
+
+    expect(edits.error()).toContain('prestito a Marco');
+    expect(saved).toBe(1);
+  });
+
   it('un nuovo salvataggio azzera l’errore del precedente', () => {
     edits.changeType(transaction(), 'LOAN');
     http
