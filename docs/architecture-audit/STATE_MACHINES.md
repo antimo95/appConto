@@ -285,7 +285,7 @@ stateDiagram-v2
   Settled --> Open: rimozione restituzione / aumento importo
   Open --> [*]: delete [nessuna restituzione]
   state "Origine con tipo != LOAN (incoerenza)" as Mismatch
-  Open --> Mismatch: PATCH tipo dell'origine (consentito, LO1)
+  Open --> Mismatch: PATCH tipo dell'origine (consentito fino a C-03; oggi 409, LO1)
   Mismatch --> Open: PATCH di nuovo a LOAN
 ```
 
@@ -300,6 +300,8 @@ stateDiagram-v2
 **Lacune nei test.** Nessuna sostanziale lato backend: 7 file. Manca un test che fissi la regola scelta per LO1, quale che sia.
 
 **Raccomandazione.** Mantenere lo stato derivato e non memorizzare `status`. Decidere una sola regola per LO1. La proposta è bloccare, per simmetria: marcare gli utilizzi ORIGIN con `requiresLoan`, circa 3 righe più un test. Documentare l'invariante "handler sincroni" in `loans.service.ts`.
+
+**Aggiornamento 2026-11-11 — C-03 implementata (LO1).** Ogni legame dichiara `requiredType` (`LOAN` per l'origine, `INCOME` per la restituzione). `PATCH /api/transactions/:id/type` risponde 409 se il tipo chiesto è diverso da quello richiesto da un legame, per prestiti aperti, parzialmente restituiti e restituiti. La transizione Open → Mismatch non è più raggiungibile per i dati nuovi; per gli archivi già incoerenti resta Mismatch → Open (ritorno a `LOAN`), e ogni altro tipo riceve 409. Il legame cessa solo con l'eliminazione del prestito, possibile senza restituzioni. Il commento sugli handler sincroni (F-12) non è stato aggiunto.
 
 ---
 

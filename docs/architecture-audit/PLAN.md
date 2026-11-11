@@ -161,7 +161,7 @@ Legenda: NOT STARTED · IN PROGRESS · COMPLETED · PARTIALLY COMPLETED · BLOCK
 | B-03 | NOT STARTED | `architecture.md:197-217` elenca 5 moduli su 11; regole false a `:444` e `:456` | Intera attività, dopo C-03 e C-04 |
 | C-01 | NOT STARTED | `settings-page.ts:52-68` carica una sola volta; `reset-panel.ts:63-69` non emette nulla | Intera attività; manca `settings-page.spec.ts` |
 | C-02 | NOT STARTED | `loan-detail-page.html:300-311`: clic diretto su `removeRepayment` | Intera attività |
-| C-03 | NOT STARTED | `transactions.service.ts:215-224` blocca solo `requiresIncome` | Riformulata: decisione LO1 definitiva |
+| C-03 | COMPLETED (2026-11-11) | `requiredType` sui legami (`loans.service.ts`), 409 in `updateType`, select bloccata nel frontend; nuovo `loans.type-lock.test.ts` e test di rotta | Riferimenti in `AGENTS.md` con B-01 |
 | C-04 | PARTIALLY COMPLETED | Il comportamento è già quello deciso e il commento BE lo dichiara (`transactions.service.ts:244-250`). Mancano il testo UI e il test | Testo di conferma + test di caratterizzazione |
 | C-05 | NOT STARTED | Il frontend ha solo `maintenance.api.ts` con `reset()`. Il backend ha tutte le API | Intera attività; include l'annullamento del restore pendente |
 | C-06 | COMPLETED (2026-11-11) | `try/catch` attorno alla ricompattazione in `reset.service.ts`, errore loggato; test con ricompattazione che fallisce | Il testo UI sulle categorie conservate resta in C-05 |
@@ -179,7 +179,7 @@ Legenda: NOT STARTED · IN PROGRESS · COMPLETED · PARTIALLY COMPLETED · BLOCK
 | F-05 | DEFERRED (fuori perimetro) | — | §10 |
 | G-01, G-02 | NOT STARTED | — | Rinviabili (§9) |
 
-Al 2026-11-11 sono COMPLETED A-04, A-05a, A-02, A-03 e C-06: la fase 1 è chiusa, salvo A-05b (BLOCKED) (evidenze nelle schede e in `PROGRESS.md`). Nessuna attività è IN PROGRESS. Le modifiche non sono ancora committate: HEAD resta `f072a59`.
+Al 2026-11-11 sono COMPLETED A-04, A-05a, A-02, A-03 e C-06 (fase 1 chiusa, salvo A-05b BLOCKED) e C-03 (evidenze nelle schede e in `PROGRESS.md`). Nessuna attività è IN PROGRESS. Le modifiche non sono ancora committate: HEAD resta `f072a59`.
 
 ---
 
@@ -560,6 +560,19 @@ Scala di effort: **XS** ≤ mezza giornata · **S** ½–1 giorno · **M** 2–3
   - DX positivo: una regola sola per D9 e LO1.
   - AX positivo: vincolo esplicito e non aggirabile.
 - **Risultato atteso:** nessun nuovo stato incoerente fra prestiti e movimenti.
+- **Stato: COMPLETED (2026-11-11).** Branch `consolidamento/fase-2`.
+  - **Backend:** `LoanLink.requiredType` (`'LOAN'` per ORIGIN, `'INCOME'` per REPAYMENT) calcolato in `linkOf`; `TransactionUsage.requiresIncome` sostituito da `requiredType` più `howToChange`, il testo con le istruzioni scritto da `loans`, così `transactions` non conosce i prestiti. `updateType` rifiuta con `ConflictError` ogni utilizzo con `requiredType` diverso dal tipo chiesto; il messaggio elenca i legami e le istruzioni di ognuno. Il testo D9 resta identico. Commento di `updateType` con il contratto di `dependents` (resta facoltativo).
+  - **Frontend:** `LoanLink.requiredType`; la pagina movimenti costruisce `typeLocks` (id → `{ requiredTypes, reason }`) dai legami; pannello e tabella condivisa lo ricevono come input. La select del tipo è disabilitata, con motivo visibile collegato da `aria-describedby`, solo in modifica e solo se il tipo attuale è fra quelli richiesti. Nessuna regola ORIGIN ⇒ LOAN scritta nel frontend.
+  - **Deviazioni:** `howToChange` aggiunto a `TransactionUsage` (non previsto dalla scheda) per tenere il testo dei prestiti in `loans`; il lock del frontend porta un elenco di tipi (`requiredTypes`), per i movimenti legacy che sono insieme origine e restituzione (emerso dalla review).
+  - **Test:**
+    - `loans.type-lock.test.ts` (nuovo, 11 casi): vietati con 409 e nome del prestito per origine con prestito aperto, parzialmente restituito, restituito, con due prestiti; messaggio con le istruzioni; consentiti: restare LOAN, movimento senza legami, origine dopo l'eliminazione del prestito, legacy riportata a LOAN (e solo a LOAN), D9 invariata; coerenza: tipo invariato, `transactionTypeMismatch = false`, cash flow del mese identico dopo i 409; `links()` espone `requiredType`;
+    - `loans.repayment-rules.test.ts`: il caso "l'origine non è vincolata" ora si aspetta 409;
+    - `transactions.routes.test.ts`: `PATCH /api/transactions/:id/type` su un'origine → 409, tipo invariato;
+    - frontend: `transactions-page.spec.ts` (riga bloccata con motivo e `aria-describedby`, legacy modificabile, restituzione bloccata, riga libera), `transaction-edits.spec.ts` (409 mostrato in `edits.error`), `transactions-table.spec.ts` (in sola lettura nessun lock).
+    - `loans.partial-expense.test.ts` e `loans.service.test.ts`: commento che dichiara la simulazione di dati legacy (nessun `dependents`).
+  - **Criteri verificati:** prima della correzione 8 casi su 11 di `loans.type-lock.test.ts` fallivano; dopo, tutti verdi. `grep -rn "requiresIncome" apps/` vuoto. `npm run check` uscita 0 (backend 1083/1083, frontend 843/843, build).
+  - **Review indipendente** (subagent Sonnet): nessun problema bloccante; accolti il messaggio con tutte le istruzioni, `requiredTypes` nel frontend e il test della tabella in sola lettura. Mantenuto `dependents` facoltativo, come deciso nella scheda.
+  - **Da fare altrove:** il contratto di `dependents` va riportato in `AGENTS.md` (B-01); la regola in `architecture.md` (B-03).
 
 #### C-04 · I1: la conferma di cancellazione dichiara la possibile reimportazione
 

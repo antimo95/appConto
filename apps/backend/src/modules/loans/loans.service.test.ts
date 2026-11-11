@@ -34,6 +34,7 @@ function transactionId(description: string): string {
   return transaction.id;
 }
 
+/** Senza `dependents`: prepara i dati, e simula anche archivi con incoerenze anteriori a LO1. */
 function setType(description: string, type: 'LOAN' | 'OTHER' | 'EXPENSE'): void {
   transactionsService.updateType(transactionId(description), type);
 }

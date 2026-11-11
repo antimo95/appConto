@@ -22,6 +22,7 @@ import { TransactionsTablePanel } from '@shared/transactions/transactions-table-
 import type {
   TransactionsTableExtraColumnContext,
   TransactionsTableExtraColumnDef,
+  TransactionsTableTypeLock,
 } from '@shared/transactions/transactions-table/transactions-table.model';
 import {
   TransactionQueryState,
@@ -31,6 +32,7 @@ import {
   TransactionSortField,
 } from './transaction-query';
 import { Transaction, TransactionPage } from './transaction.model';
+import type { TransactionType } from './transaction-type';
 import { TransactionsApi, transactionsRequest } from './transactions.api';
 import { TransactionsToolbar } from './transactions-toolbar';
 import { createDeleteState } from './transaction-delete';
@@ -107,6 +109,32 @@ export class TransactionsPage implements OnDestroy {
 
   /** I legami indicizzati per movimento: una volta per risposta, non una per cella. */
   private readonly linksByTransaction = computed(() => indexLinksByTransaction(this.links() ?? []));
+
+  /**
+   * I vincoli sul tipo, così come li dichiara il backend (`requiredType`).
+   *
+   * Nessuna regola scritta qui: si riporta il tipo richiesto e si spiega a
+   * cosa è collegato il movimento. Il 409 resta la rete di sicurezza.
+   */
+  protected readonly typeLocks = computed(() => {
+    const locks = new Map<string, TransactionsTableTypeLock<TransactionType>>();
+
+    for (const [transactionId, links] of this.linksByTransaction()) {
+      const legami = links
+        .map((link) =>
+          link.role === 'ORIGIN'
+            ? `prestito a ${link.borrowerName}`
+            : `restituzione del prestito a ${link.borrowerName}`,
+        )
+        .join(', ');
+      locks.set(transactionId, {
+        requiredTypes: [...new Set(links.map((link) => link.requiredType))],
+        reason: `Collegato a: ${legami}. Il tipo non si può cambiare finché il collegamento esiste.`,
+      });
+    }
+
+    return locks;
+  });
 
   /** Il testo digitato, prima che diventi un criterio nell'URL. */
   protected readonly searchText = signal('');

@@ -5,15 +5,15 @@ Punto di ingresso per la prossima sessione. Fotografia dello stato operativo: le
 ## Stato generale
 
 - **Ultimo aggiornamento:** 2026-11-11.
-- **Branch:** `consolidamento/fase-1` (da `master` a `f072a59`). Pubblicato su `origin` il 2026-11-11; merge in `master` tramite pull request aperta dal proprietario. Prima di riprendere, verificare se è già stato unito.
-- **HEAD:** commit di C-06 (vedi `git log --oneline -6`). Precedenti: `f52071c` (A-03), `ffb527d` (A-02), `4e7fcf5` (A-04, A-05a), `2a5e7f8` (documenti di audit e piano).
-- **Working tree:** pulito dopo il commit di C-06.
-- **Roadmap:** fase 1 chiusa (A-04, A-05a, A-02, A-03, C-06 COMPLETED; A-05b BLOCKED da A-01). Prossima: fase 2, C-03 → C-04. DEFERRED fuori perimetro: A-01, E-02, F-05. C-04 PARTIALLY COMPLETED (stato di partenza). Osservazione G-03 aperta (§9). Dettaglio in `PLAN.md` §3.
+- **Branch:** `consolidamento/fase-2`, da `master` a `46302f9` (merge della fase 1, PR #12). Non pubblicato.
+- **HEAD:** commit di C-03 (vedi `git log --oneline -3`).
+- **Working tree:** pulito dopo il commit di C-03.
+- **Roadmap:** fase 1 chiusa (A-04, A-05a, A-02, A-03, C-06; A-05b BLOCKED da A-01). Fase 2: C-03 COMPLETED, C-04 da fare (PARTIALLY COMPLETED come stato di partenza). DEFERRED fuori perimetro: A-01, E-02, F-05. Osservazione G-03 aperta. Dettaglio in `PLAN.md` §3.
 
 ## Ultimo lavoro completato
 
-- **C-06:** se la ricompattazione (`VACUUM`) fallisce dopo lo svuotamento già committato, il reset restituisce comunque l'esito con il backup `pre-reset`; l'errore va nel log. Test che falliva prima della correzione.
-- Evidenze: scheda C-06 in `PLAN.md`, SM7 in `STATE_MACHINES.md`, `PROGRESS.md`.
+- **C-03 (LO1):** un movimento d'origine di prestiti non cambia tipo finché esiste un prestito (409); la regola D9 usa lo stesso meccanismo (`requiredType` sui legami). Il frontend disabilita la select del tipo, con il motivo, solo se il tipo attuale è già quello richiesto: le righe legacy restano correggibili verso `LOAN`.
+- Evidenze: scheda C-03 in `PLAN.md`, SM4 in `STATE_MACHINES.md`, `PROGRESS.md`.
 
 ## Lavoro in corso
 
@@ -21,22 +21,18 @@ Nessuna attività parziale.
 
 ## Prossima attività
 
-- **ID:** C-03 — LO1: il tipo di un movimento d'origine di prestiti è bloccato.
-- **Perché ora:** prima attività della fase 2 (§7: C-03 → C-04). Decisione LO1 definitiva (§2.1): non riaprirla.
-- **Prerequisiti:** A-05a (completata). Esclusività su `transactions.service.ts` e `loans.service.ts`.
-- **File da esaminare:**
-  - `apps/backend/src/modules/transactions/transactions.service.ts`: `updateType` a `:209`, filtro su `requiresIncome` a `:216`, campo `requiresIncome` a `:25`;
-  - `apps/backend/src/modules/loans/loans.service.ts`: `transactionUsages`, `requiresIncome: link.role === 'REPAYMENT'` a `:478`;
-  - `apps/backend/src/modules/transactions/transactions.routes.ts:101-108` (passa sempre `dependents`);
-  - `GET /api/loans/links` (rotte dei prestiti) e, lato frontend, la pagina movimenti e `transactions-table`;
-  - test da ribaltare: `loans.repayment-rules.test.ts:187-192`; da ricontrollare: `loans.partial-expense.test.ts:224-249`, `loans.service.test.ts:752-768`, `loans.validation.test.ts:284`.
-- **Progetto deciso** (scheda C-03): `requiredType` (`'LOAN'` per ORIGIN, `'INCOME'` per REPAYMENT) calcolato in `linkOf`, copiato da `transactionUsages` al posto di `requiresIncome`; `updateType` rifiuta con 409 se `requiredType !== type`, con il messaggio della scheda; `dependents` resta opzionale (commento sul contratto e test di rotta); `requiredType` esposto in `GET /api/loans/links`; frontend: select del tipo disabilitata con `aria-describedby` quando il tipo coincide con `requiredType`, righe legacy con select normale.
-- **Primo passo consigliato:** test backend che cambia il tipo di un movimento d'origine di un prestito completamente restituito e si aspetta 409; oggi passa (nessun blocco). Vederlo fallire.
-- **Da non dimenticare:** G-03, `scripts/verify-package.mjs` attende 22 categorie invece di 24; `verify:package` è 12/17 per questa causa. Va corretta prima del prossimo rilascio.
+- **ID:** C-04 — I1: la conferma di cancellazione dichiara la possibile reimportazione.
+- **Perché ora:** seconda e ultima attività della fase 2 (§7: C-03 → C-04). XS. Decisione I1 definitiva (§2.2): comportamento invariato, nessuna tombstone, tabella, migrazione o modifica alla deduplicazione.
+- **Prerequisiti:** A-05a (completata).
+- **File da esaminare:** `apps/frontend/src/app/shared/transactions/transactions-table-panel/transactions-table-panel.html` (blocco di conferma "Eliminare definitivamente?", intorno a `:51-60`), `transactions-table-panel.spec.ts`, `features/transactions/transactions-delete.spec.ts`; per il test backend `modules/import/` o `modules/transactions/` (`transactions.delete.test.ts`).
+- **Progetto deciso:** frase "Se reimporti un estratto conto che li contiene, questi movimenti verranno importati di nuovo." nel blocco di conferma; test di caratterizzazione backend (import, cancellazione, reimport: il movimento torna, gli altri sono duplicati). Il test passa subito: fissa un comportamento esistente.
+- **Primo passo consigliato:** spec frontend che cerca la frase nel blocco di conferma (fallisce), poi il testo; poi il test backend.
+- **Dopo C-04:** fase 3 (B-02 → B-03 → B-01), con `AGENTS.md` che deve riportare il contratto di `dependents` e le regole LO1/I1.
+- **Da non dimenticare:** G-03, `scripts/verify-package.mjs` attende 22 categorie invece di 24; `verify:package` è 12/17 per questa causa.
 
 ## Verifiche
 
-- **Ultimo `npm run check`:** 2026-11-11, dopo C-06: uscita 0, 109 s (backend 1071/1071, frontend 840/840, build ok).
+- **Ultimo `npm run check`:** 2026-11-11, dopo C-03: uscita 0, 110 s (backend 1083/1083, frontend 843/843, build ok).
 - **Ultimo `npm run verify:package`:** 12/17; i 5 fallimenti dipendono da G-03, non dalle attività svolte.
 - **Non eseguito:** doppio clic manuale (sostituito da prova scriptata); prove con antivirus aggressivo, OneDrive, chiavette FAT/exFAT.
 - **Ambiente:** Windows 11, Node v24.11.1. Comandi eseguiti da Git Bash e PowerShell. Le righe "Not implemented: HTMLCanvasElement's getContext()" nei test frontend sono avvisi di jsdom.
@@ -57,5 +53,5 @@ Nessuna attività parziale.
 1. Leggere questo file, poi la scheda della prossima attività in `PLAN.md` §6 e l'ultima sezione di `PROGRESS.md`.
 2. Verificare `git branch --show-current`, `git rev-parse --short HEAD`, `git status --porcelain` e confrontarli con "Stato generale". Se divergono, aggiornare questo file prima di continuare.
 3. Eseguire `npm run check` per confermare che la base è verde (circa 2 minuti).
-4. Riprendere da C-03 con un test che fallisce prima della correzione (`PLAN.md` §8.2).
-5. A fine attività: `npm run check`; aggiornare `PLAN.md` §3 e la scheda, aggiungere una sezione a `PROGRESS.md`, riscrivere questo file. Aggiornare `STATE_MACHINES.md` se cambia il comportamento implementato (per C-03: la macchina dei prestiti e il cambio di tipo).
+4. Riprendere da C-04 (`PLAN.md` §6, Fase 2).
+5. A fine attività: `npm run check`; aggiornare `PLAN.md` §3 e la scheda, aggiungere una sezione a `PROGRESS.md`, riscrivere questo file. Aggiornare `STATE_MACHINES.md` se cambia il comportamento implementato (C-04 non lo cambia: aggiungere solo una nota su SM5/I1 se utile).

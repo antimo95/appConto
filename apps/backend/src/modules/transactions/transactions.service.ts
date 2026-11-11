@@ -17,12 +17,14 @@ export interface TransactionUsage {
   readonly transactionId: string;
   readonly usedBy: string;
   /**
-   * `true` se il legame regge solo finché il movimento è un'entrata: chi lo
-   * dichiara sa che cambiarne il tipo lo svuoterebbe di significato — una
-   * restituzione non si appoggia a una spesa. Assente significa «il tipo non
-   * conta».
+   * Il tipo che il movimento deve avere finché il legame esiste: chi lo
+   * dichiara sa che cambiarlo svuoterebbe il legame di significato — una
+   * restituzione non si appoggia a una spesa (D9), un prestito non nasce da
+   * una spesa (LO1). Assente significa «il tipo non conta».
    */
-  readonly requiresIncome?: boolean;
+  readonly requiredType?: TransactionType;
+  /** Come sciogliere il vincolo, detto da chi conosce il legame. */
+  readonly howToChange?: string;
 }
 
 /**
@@ -200,11 +202,15 @@ export const transactionsService = {
    * È l'unico dato modificabile di una transazione già importata: data,
    * descrizione e importo restano quelli originali della banca.
    *
-   * Un movimento a cui è collegata una restituzione deve restare un'entrata
-   * (D9): altrimenti la regola che ammette solo accrediti `INCOME` si
-   * aggirerebbe cambiando il tipo dopo il collegamento. `dependents` è
-   * facoltativo perché non tutti i chiamanti hanno dei legami da rispettare;
-   * la rotta lo passa sempre.
+   * Un legame può pretendere un tipo (`requiredType`): un accredito collegato
+   * a una restituzione resta un'entrata (D9), un movimento d'origine di
+   * prestiti resta un prestito finché ne esiste uno (LO1). Altrimenti le
+   * regole che li hanno ammessi si aggirerebbero cambiando il tipo dopo.
+   *
+   * **Contratto:** i vincoli valgono solo se `dependents` è passato. È
+   * facoltativo per i test che simulano dati legacy; ogni chiamante di
+   * produzione deve passarlo (oggi l'unico è la rotta, verificato da un test
+   * di rotta).
    */
   updateType(id: string, type: TransactionType, dependents?: TransactionDependents): Transaction {
     const transaction = transactionsRepository.findById(id);
@@ -212,14 +218,19 @@ export const transactionsService = {
       throw new NotFoundError(`Transazione "${id}" non trovata.`);
     }
 
-    if (type !== 'INCOME' && dependents !== undefined) {
-      const vincoli = dependents.usagesOf([id]).filter((usage) => usage.requiresIncome === true);
+    if (dependents !== undefined) {
+      const vincoli = dependents
+        .usagesOf([id])
+        .filter((usage) => usage.requiredType !== undefined && usage.requiredType !== type);
       if (vincoli.length > 0) {
         const elenco = [...new Set(vincoli.map((usage) => usage.usedBy))].join(', ');
+        const come = [
+          ...new Set(
+            vincoli.map((usage) => usage.howToChange ?? 'Elimina prima quel collegamento, poi correggi il tipo.'),
+          ),
+        ].join(' ');
 
-        throw new ConflictError(
-          `Il movimento è collegato a: ${elenco}. Deve restare un'entrata: elimina prima quel collegamento, poi correggi il tipo.`,
-        );
+        throw new ConflictError(`Il movimento è collegato a: ${elenco}. ${come}`);
       }
     }
 

@@ -14,6 +14,7 @@ import type {
   TransactionsTableSortDirection,
   TransactionsTableSortField,
   TransactionsTableTypeChange,
+  TransactionsTableTypeLock,
 } from '@shared/transactions/transactions-table/transactions-table.model';
 import type { SelectOption } from '@shared/ui/forms/select/select.model';
 
@@ -77,6 +78,7 @@ export class TransactionsTablePanel<R extends TransactionsTableRow = Transaction
   readonly sortDirection = input<TransactionsTableSortDirection>('desc');
   readonly showTotal = input(true);
   readonly savingId = input<string | null>(null);
+  readonly typeLocks = input<ReadonlyMap<string, TransactionsTableTypeLock<R['type']>>>(new Map());
   /** L'ultimo errore di salvataggio in linea: diventa l'`error` della tabella. */
   readonly editError = input<string | null>(null);
   readonly extraColumn = input<TransactionsTableExtraColumnDef<R> | null>(null);

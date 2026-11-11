@@ -218,3 +218,38 @@ Lo stato corrente e il prossimo passo sono in `HANDOFF.md`; lo stato di ogni att
 
 - Nessuna attività parziale. Fase 1 chiusa, salvo A-05b (BLOCKED da A-01).
 - Prossima attività: C-03.
+
+---
+
+## Sessione 2026-11-11 (quinta parte) — merge della fase 1 e C-03
+
+- **Merge:** il proprietario ha unito `consolidamento/fase-1` in `master` (PR #12, `46302f9`). Verificato con `git merge-base --is-ancestor`. `master` locale allineato con fast-forward.
+- **Branch:** `consolidamento/fase-2`, da `46302f9`. **Commit finale:** quello che contiene C-03.
+
+| ID | Esito |
+|---|---|
+| C-03 | COMPLETED |
+
+### File modificati
+
+- Backend: `modules/loans/loans.service.ts`, `loans.view-model.ts`, `modules/transactions/transactions.service.ts`; test `loans.type-lock.test.ts` (nuovo), `loans.repayment-rules.test.ts`, `loans.partial-expense.test.ts`, `loans.service.test.ts` (solo commenti), `transactions.routes.test.ts`.
+- Frontend: `features/loans/loan.model.ts`, `features/transactions/transactions-page.{ts,html}`, `shared/transactions/transactions-table-panel/transactions-table-panel.{ts,html}`, `shared/transactions/transactions-table/transactions-table.{ts,html,scss,model.ts}`; spec `transactions-page.spec.ts`, `transaction-edits.spec.ts`, `transactions-table.spec.ts`, `loan-create-page.spec.ts` (fixture).
+- Documenti: `PLAN.md`, `STATE_MACHINES.md` (SM4), `PROGRESS.md`, `HANDOFF.md`.
+
+### Sequenza e verifiche
+
+1. Test backend scritti prima (`loans.type-lock.test.ts`): 8 su 11 falliscono sul codice di partenza ("Missing expected exception" per i 409; `requiredType` assente).
+2. Backend implementato; suite backend 1082/1082; test di rotta aggiunto (12/12 nel file).
+3. Frontend implementato; specs aggiornate. Un primo giro di `npm run check` falliva sulla nuova spec del 409: avevo supposto il corpo `{ error: { message } }`, ma `error-handler.ts:70` risponde `{ error: message }`. Corretta la fixture.
+4. Review indipendente (Sonnet): 0 bloccanti, 3 rischi, 1 domanda. Accolti: istruzioni di tutti i legami nel 409; `requiredTypes` nel lock del frontend (un movimento legacy origine e restituzione insieme veniva lasciato modificabile o bloccato a seconda dell'ordine dei legami); spec della tabella in sola lettura. Non accolto: rendere obbligatorio `dependents` (deciso nella scheda).
+5. `npm run check` finale: uscita 0 in 110 s; backend 1083/1083, frontend 843/843, build riuscita.
+
+### Verifiche non eseguite
+
+- Nessuna prova manuale nell'app avviata della select bloccata.
+- Nessun test sul caso legacy "origine e restituzione insieme": il backend rifiuta ogni tipo (nessuno soddisfa entrambi i legami), il che obbliga a eliminare un legame. Comportamento ritenuto corretto, non fissato da test.
+
+### In sospeso
+
+- Nessuna attività parziale. Prossima: C-04.
+- Il contratto di `dependents` va scritto in `AGENTS.md` (B-01).

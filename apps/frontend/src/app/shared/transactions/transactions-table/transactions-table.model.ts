@@ -126,6 +126,20 @@ export interface TransactionsTableExtraColumnDef<
 }
 
 /**
+ * Un vincolo sul tipo di una riga, deciso dal backend (LO1, D9).
+ *
+ * La tabella non sa perché esiste: lo applica solo quando il tipo attuale è
+ * già uno di quelli richiesti (uno per legame). Una riga con un tipo diverso
+ * (dati anteriori alla regola) resta modificabile, così si può riportarla al
+ * tipo giusto; il backend rifiuta comunque ogni altra scelta.
+ */
+export interface TransactionsTableTypeLock<T extends string = string> {
+  readonly requiredTypes: readonly T[];
+  /** Il motivo, mostrato accanto alla select e collegato con `aria-describedby`. */
+  readonly reason: string;
+}
+
+/**
  * Una pagina di righe con la sua paginazione: la forma che la risposta del
  * backend ha già (`TransactionPage` della feature la soddisfa così com'è).
  */
