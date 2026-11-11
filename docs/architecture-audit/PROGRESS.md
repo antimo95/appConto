@@ -124,3 +124,60 @@ Lo stato corrente e il prossimo passo sono in `HANDOFF.md`; lo stato di ogni att
 - Nessuna attività parziale.
 - Prossima attività: A-03, in una sessione separata.
 - I riferimenti di riga della scheda A-03 sono slittati: `live` è a `instance-lock.ts:136,150`, il furto del lock con `rmSync` a `:241` (e `:198`).
+
+---
+
+## Sessione 2026-11-11 (terza parte) — A-03
+
+- **Branch:** `consolidamento/fase-1`.
+- **Commit iniziale:** `ffb527d` (A-02). **Commit finale:** quello che contiene A-03 (vedi `git log`).
+- **Nota sull'ordine:** l'ordine consigliato (§7) mette C-06 subito dopo A-02. A-03 è stata anticipata su richiesta di procedere: le dipendenze lo consentono, le aree sono diverse (`launcher/` e `maintenance/`).
+
+### Attività affrontate
+
+| ID | Esito |
+|---|---|
+| A-03 | COMPLETED |
+
+### File modificati
+
+- `apps/backend/src/launcher/instance-lock.ts`: rivendicazione del furto, lettura con identità del file (`snapshot`), `stealClaimFor` esportata per i test, gestione di `EPERM`, `release()` più restrittivo.
+- `apps/backend/src/launcher/instance-lock.test.ts`: 8 nuovi test.
+- `docs/rilascio.md`: sezione "Se l'avvio dice «L'archivio risulta bloccato da un avvio interrotto…»".
+- `docs/architecture-audit/PLAN.md` (§3, scheda A-03, nuova osservazione G-03 in §9), `STATE_MACHINES.md` (SM3), `PROGRESS.md`, `HANDOFF.md`.
+
+### Sequenza e verifiche
+
+1. **Test prima della correzione:** T1, T3, T5 falliscono (T1: "B deve trovare A, non togliergli il lock"; T5: più vincitori alla ripetizione 0); T2 verde.
+2. **Prima implementazione** come da scheda, con chiave = sha256 dei byte del lock. Suite `launcher/` 73/73, `npm run check` verde.
+3. **Review indipendente** (subagent Opus, sola lettura), 7 osservazioni, nessuna bloccante. Accolte:
+   - lock vuoti: tutti con la stessa chiave, quindi un lock nuovo non ancora scritto sembrava quello morto. Chiave estesa con `ino` e `birthtimeNs` letti dallo stesso handle;
+   - un errore di lettura diverso da `ENOENT` faceva ripartire subito il ciclo e poteva esaurire i tentativi in microsecondi. Ora segue l'attesa di grazia e non porta mai al furto;
+   - `release()` cancellava un file illeggibile. Ora rimuove solo un lock leggibile con il proprio token;
+   - messaggio d'errore e `docs/rilascio.md` estesi al caso del file che non si lascia rimuovere.
+   Documentata e non corretta: un avvio fermo più di 600 ms fra creazione e scrittura del proprio lock è giudicato morto (preesistente). Coperta diversamente: mancanza di un test tra processi (vedi punto 4).
+4. **Stress tra processi reali** (script `lock-stress.mts` nella scratchpad di sessione, fuori dal repository): da 6 a 10 processi Node concorrenti su un lock morto, liveness TCP vera, il vincitore resta in ascolto 4 s.
+   - codice di `HEAD` (prima di A-03): 0/6 ripetizioni corrette, da 2 a 4 processi acquisivano insieme; in un caso anche `EPERM` sul `wx`;
+   - codice nuovo, 6 processi: 30/30;
+   - codice nuovo, 10 processi: 28/30. Esclusione sempre rispettata, ma 2 perdenti terminavano con `EPERM` sul `wx` di una rivendicazione in cancellazione. Corretto trattando `EPERM` come transitorio (con l'errore originale mostrato se persiste);
+   - dopo la correzione, 10 processi: 50/50.
+5. **Prova sul pacchetto** (`npm run package`; `MYFINANCE_DATA` temporanea, `MYFINANCE_NO_BROWSER=1`, cartella rimossa al termine): avvio, `taskkill /F` di launcher e server, lock residuo presente, due `start.bat` lanciati quasi insieme. Un solo launcher vivo; il secondo stampa "MyFinance è già in esecuzione per questo archivio". Eseguita da script PowerShell, non con doppio clic.
+6. **`npm run verify:package`:** 12/17. Superate K (istanza unica) e N (lock residuo dopo terminazione brusca). Falliscono A/C/I, D, Q, R ("24 categorie invece di 22", "le migrazioni sono state riapplicate") ed E/G/J ("già in esecuzione", probabilmente un'istanza rimasta da D). Causa indipendente da A-03: lo script attende 22 categorie, il commit `a0ac8f8` ne ha aggiunte 2. Registrata come G-03; non verificato sulla baseline. Nessun processo del pacchetto rimasto attivo.
+7. **`npm run check` finale:** uscita 0 in 114 s; backend 1070/1070, frontend 840/840, build riuscita.
+
+### Decisioni tecniche
+
+- Chiave della rivendicazione = sha256(byte + `ino` + `birthtimeNs`) invece del token (vedi scheda A-03).
+- `stealClaimFor()` esportata solo perché il test del caso residuo deve conoscere il nome della rivendicazione.
+- Nessuna libreria, nessuna scadenza per età.
+
+### Verifiche non eseguite
+
+- Doppio clic manuale su `start.bat` (sostituito dalla prova scriptata al punto 5).
+- Comportamento con antivirus aggressivo o su cartella sincronizzata (OneDrive) e su chiavette FAT/exFAT, dove `ino` e `birthtime` hanno garanzie più deboli.
+
+### In sospeso
+
+- Nessuna attività parziale.
+- Prossima attività: C-06.
+- G-03 (verify-package con attese obsolete) va corretta prima del prossimo rilascio.

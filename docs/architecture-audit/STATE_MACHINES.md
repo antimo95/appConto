@@ -217,7 +217,7 @@ stateDiagram-v2
   Prereq --> Channel: canale TCP di controllo attivo
   Channel --> Acquire
   Acquire --> AlreadyRunning: il proprietario del lock risponde -> apre il browser
-  Acquire --> Acquire: proprietario muto -> rm + nuovo tentativo (<=4) [race L1]
+  Acquire --> Acquire: proprietario muto -> rivendicazione wx + rilettura + rm solo se invariato (<=4) [A-03]
   Acquire --> Spawned: wx riuscito
   Spawned --> StartFailed: il figlio esce prima di ready
   Spawned --> Probing: IPC ready [nessun timeout prima di questo, L2]
@@ -242,6 +242,16 @@ stateDiagram-v2
 **Raccomandazione.**
 
 - L1: prima di `rmSync`, rileggere il file e cancellarlo solo se il `token` coincide con quello appena giudicato morto. In alternativa, rinominarlo atomicamente su un nome univoco e poi verificare. Aggiungere un test con due acquisizioni concorrenti.
+
+**Aggiornamento 2026-11-11 — A-03 implementata (L1 risolto).** Comportamento attuale di `acquireInstanceLock`:
+
+- il furto di un lock giudicato morto richiede la rivendicazione `<lock>.steal-<chiave>` creata con `wx`; la chiave è lo sha256 dei byte e dell'identità del file (`ino`, `birthtimeNs`);
+- chi vince la rivendicazione rilegge il lock e lo rimuove solo se la chiave è invariata; rimuove la rivendicazione dopo il `wx` del proprio lock;
+- un lock che non si riesce a leggere (errore diverso da `ENOENT`) non viene mai rubato; `EPERM` sul `wx` è trattato come transitorio (file in cancellazione su Windows);
+- `release()` rimuove solo un lock leggibile con il proprio token;
+- stato terminale nuovo: errore esplicito "L'archivio risulta bloccato…" quando una rivendicazione per il lock morto attuale resta all'ultimo tentativo (avvio terminato fra rivendicazione e sostituzione); i due file si rimuovono a mano (`docs/rilascio.md`);
+- caso residuo preesistente: un avvio fermo più di 600 ms fra creazione e scrittura del proprio lock viene giudicato morto.
+- Verifiche: test in `instance-lock.test.ts`; stress tra processi reali 50/50 con 10 processi; prova sul pacchetto dopo `taskkill /F`.
 - L2: un timeout configurabile su `ready`.
 - A8: documentare il rischio, oppure riusare il lock in `main.ts` (vedi PLAN).
 

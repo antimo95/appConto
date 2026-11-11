@@ -153,7 +153,7 @@ Legenda: NOT STARTED · IN PROGRESS · COMPLETED · PARTIALLY COMPLETED · BLOCK
 |---|---|---|---|
 | A-01 | DEFERRED (fuori perimetro) | Cartella `apps/backend/data-backup-p2-20260901/` ancora tracciata | §10 |
 | A-02 | COMPLETED (2026-11-11) | `prune(protect)` e `create(..., protect)` in `backup.service.ts`; `clearPendingRestore()` prima della sostituzione del candidato in `restore.service.ts`; test T1–T4 | — |
-| A-03 | NOT STARTED | `instance-lock.ts:238-243`: `rmSync` senza alcuna verifica del token | Intera attività, ridisegnata (rivendicazione del furto per token) |
+| A-03 | COMPLETED (2026-11-11) | Furto del lock tramite rivendicazione `wx` per istanza in `instance-lock.ts`; test unitari, stress tra processi 50/50, prova sul pacchetto con `taskkill /F` | — |
 | A-04 | COMPLETED (2026-11-11) | `npm run test:frontend` esce con 0; 840/840; nessun "Unhandled Errors". Rotte reali con pagine vuote in `app.spec.ts` (vedi scheda) | — |
 | A-05 | Divisa | — | **A-05a** COMPLETED (2026-11-11): script `check` nel `package.json` radice, esito 0 a progetto sano e ≠ 0 per ciascun passo rotto. **A-05b** BLOCKED da A-01 |
 | B-01 | NOT STARTED | Nessun `AGENTS.md`/`CLAUDE.md` nel repository | Intera attività |
@@ -179,7 +179,7 @@ Legenda: NOT STARTED · IN PROGRESS · COMPLETED · PARTIALLY COMPLETED · BLOCK
 | F-05 | DEFERRED (fuori perimetro) | — | §10 |
 | G-01, G-02 | NOT STARTED | — | Rinviabili (§9) |
 
-Al 2026-11-11 sono COMPLETED A-04, A-05a e A-02 (evidenze nelle schede e in `PROGRESS.md`). Nessuna attività è IN PROGRESS. Le modifiche non sono ancora committate: HEAD resta `f072a59`.
+Al 2026-11-11 sono COMPLETED A-04, A-05a, A-02 e A-03 (evidenze nelle schede e in `PROGRESS.md`). Nessuna attività è IN PROGRESS. Le modifiche non sono ancora committate: HEAD resta `f072a59`.
 
 ---
 
@@ -453,6 +453,21 @@ Scala di effort: **XS** ≤ mezza giornata · **S** ½–1 giorno · **M** 2–3
   - DX neutro.
   - AX positivo: l'invariante single-writer, su cui si basano loans, categories, restore e migrazioni, diventa verificato.
 - **Risultato atteso:** l'invariante single-writer è garantito anche dopo un crash.
+- **Stato: COMPLETED (2026-11-11).**
+  - **Intervento realizzato:** rivendicazione `wx` su `<lock>.steal-<chiave>`, rilettura sotto rivendicazione, rimozione solo se il lock è ancora quello giudicato morto; la rivendicazione si rimuove dopo il `wx` del proprio lock. Errore esplicito con i due file nel caso residuo, commento `shortcut:` nel codice e sezione in `docs/rilascio.md`.
+  - **Deviazioni dalla proposta, emerse da review e prove:**
+    - la chiave non è il `token` ma lo sha256 dei byte **più l'identità del file** (`ino` e `birthtimeNs` letti dallo stesso handle). Il token è un valore letto da un file non fidato e finirebbe in un nome di file. I soli byte non bastano: ogni lock appena creato con `wx` è vuoto, quindi un lock vuoto nuovo sarebbe indistinguibile da uno morto;
+    - un errore di lettura diverso da `ENOENT` (antivirus, file in cancellazione) non porta mai al furto: si attende e si riprova;
+    - `EPERM` sul `wx` del lock o della rivendicazione si tratta come transitorio, perché su Windows un file in cancellazione rifiuta l'apertura. Se persiste fino all'ultimo tentativo, l'errore originale viene mostrato;
+    - `release()` non cancella più un file illeggibile: può essere il lock appena creato da un altro avvio (I-L1).
+  - **Test:** nel describe "furto di un lock abbandonato da parte di avvii concorrenti" di `instance-lock.test.ts`: T1 (interleaving deterministico con l'hook `live`, più T4 sul rilascio), T2, T3, T5 (50 ripetizioni × 5 avvii), più tre casi dalla review: chiavi diverse per due lock vuoti successivi, furto di un lock vuoto, rilascio che non cancella un file illeggibile.
+  - **Criteri verificati:**
+    - prima della correzione T1, T3 e T5 fallivano; T2 era verde;
+    - suite `launcher/` 76/76; `npm run check` uscita 0 (backend 1070/1070, frontend 840/840, build);
+    - stress tra processi reali (script fuori repository, 6–10 processi Node concorrenti su un lock morto, liveness TCP vera): codice precedente 0/6 ripetizioni corrette (da 2 a 4 processi acquisivano insieme); codice nuovo 30/30 con 6 processi e 50/50 con 10 processi dopo la gestione di `EPERM`;
+    - prova sul pacchetto (`npm run package`, `DATA_ROOT` temporanea, `MYFINANCE_NO_BROWSER=1`): avvio, `taskkill /F`, lock residuo, due `start.bat` quasi simultanei: un solo launcher vivo, il secondo stampa "MyFinance è già in esecuzione per questo archivio". Eseguita da script, non con doppio clic manuale;
+    - `npm run verify:package`: K (una sola istanza per archivio) e N (lock residuo dopo terminazione brusca) superate. 5 verifiche falliscono per una causa preesistente e indipendente (osservazione G-03, §9).
+  - **Casi residui documentati:** crash fra rivendicazione e sostituzione del lock (errore esplicito, rimozione manuale); un avvio fermo più di 600 ms fra creazione e scrittura del proprio lock viene giudicato morto (preesistente, il contenuto è davvero immutato).
 
 #### C-06 · Reset: esito corretto anche se `VACUUM` fallisce
 
@@ -1096,6 +1111,7 @@ Si eseguono solo quando si lavora già nell'area o quando una misura lo giustifi
 | E-05 | Test del launcher senza polling a scadenza (`run.test.ts:152-168`, `readiness.test.ts:172-174`) | Condizionale | P3 | S | A-05b | **Solo** se la CI mostra instabilità | 20 esecuzioni CI consecutive verdi |
 | E-06 | Scritture solo tramite il repository proprietario: `reassignMerchants` in `merchantsRepository`; reset tramite `settingsRepository` | Opzionale | P3 | S | B-03 | Quando si tocca categories o reset. Nessuna interfaccia o porta | Grep: nessuna scrittura su tabelle di altri moduli; suite verde |
 | E-07 | Lock anche nell'avvio diretto (`main.ts`, A8) più L2 (timeout di `ready`) e L3 (codice d'uscita per un figlio ucciso da segnale) | Opzionale | P3 | S | A-03 | Solo se sviluppo e pacchetto possono condividere la stessa `DATA_ROOT`; altrimenti basta la riga in `AGENTS.md` | `start:backend` con il pacchetto attivo sulla stessa `DATA_ROOT` fallisce con un errore esplicito |
+| G-03 | `scripts/verify-package.mjs` attende 22 categorie (righe 611, 713, 1404, 1511); dal commit `a0ac8f8` (2026-09-22, Regali e Rimborso) sono 24. Falliscono A/C/I, D, Q, R ed E/G/J (quest'ultima probabilmente a cascata, per un'istanza lasciata attiva da D) | Rinviabile | P2 | XS | — | Osservata il 2026-11-11 durante A-03. `verify:package` fa parte della checklist di rilascio: va corretta prima del prossimo rilascio. Non verificato sulla baseline | `npm run verify:package` 17/17 |
 | F-01 | Codice morto: `installShutdownHandlers` e `shutdown` legacy (`shutdown.ts:196-240`), `affectsAccountBalance`, `transactionsService.listAll`, `merchantsService.listAll` | Opzionale | P3 | XS | — | Quando si tocca l'area | Grep vuoto, suite verde |
 | F-02 | Un helper per gli enum nei query param (`z.enum().safeParse`) e una sola `CLASSIFICATION_FILTERS` | Opzionale | P3 | S | — | Quando si tocca una query | Nessun `includes(x as T)` nei `*-query.ts` |
 | F-03 | Un solo `idParam(req)` nelle rotte | Opzionale | P3 | XS | — | — | 4 copie ridotte a 1 |
