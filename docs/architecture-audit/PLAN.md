@@ -162,7 +162,7 @@ Legenda: NOT STARTED · IN PROGRESS · COMPLETED · PARTIALLY COMPLETED · BLOCK
 | C-01 | NOT STARTED | `settings-page.ts:52-68` carica una sola volta; `reset-panel.ts:63-69` non emette nulla | Intera attività; manca `settings-page.spec.ts` |
 | C-02 | NOT STARTED | `loan-detail-page.html:300-311`: clic diretto su `removeRepayment` | Intera attività |
 | C-03 | COMPLETED (2026-11-11) | `requiredType` sui legami (`loans.service.ts`), 409 in `updateType`, select bloccata nel frontend; nuovo `loans.type-lock.test.ts` e test di rotta | Riferimenti in `AGENTS.md` con B-01 |
-| C-04 | PARTIALLY COMPLETED | Il comportamento è già quello deciso e il commento BE lo dichiara (`transactions.service.ts:244-250`). Mancano il testo UI e il test | Testo di conferma + test di caratterizzazione |
+| C-04 | COMPLETED (2026-11-11) | Frase di avviso nella conferma di cancellazione (`transactions-table-panel.html`); test di caratterizzazione `transactions.reimport.test.ts` | — |
 | C-05 | NOT STARTED | Il frontend ha solo `maintenance.api.ts` con `reset()`. Il backend ha tutte le API | Intera attività; include l'annullamento del restore pendente |
 | C-06 | COMPLETED (2026-11-11) | `try/catch` attorno alla ricompattazione in `reset.service.ts`, errore loggato; test con ricompattazione che fallisce | Il testo UI sulle categorie conservate resta in C-05 |
 | D-01 | NOT STARTED | `categories-page.ts:19` duplica `FALLBACK_CATEGORY_ID` | Intera attività |
@@ -179,7 +179,7 @@ Legenda: NOT STARTED · IN PROGRESS · COMPLETED · PARTIALLY COMPLETED · BLOCK
 | F-05 | DEFERRED (fuori perimetro) | — | §10 |
 | G-01, G-02 | NOT STARTED | — | Rinviabili (§9) |
 
-Al 2026-11-11 sono COMPLETED A-04, A-05a, A-02, A-03 e C-06 (fase 1 chiusa, salvo A-05b BLOCKED) e C-03 (evidenze nelle schede e in `PROGRESS.md`). Nessuna attività è IN PROGRESS. Le modifiche non sono ancora committate: HEAD resta `f072a59`.
+Al 2026-11-11 sono COMPLETED A-04, A-05a, A-02, A-03 e C-06 (fase 1 chiusa, salvo A-05b BLOCKED) e la fase 2 (C-03, C-04) (evidenze nelle schede e in `PROGRESS.md`). Nessuna attività è IN PROGRESS. Le modifiche non sono ancora committate: HEAD resta `f072a59`.
 
 ---
 
@@ -609,6 +609,10 @@ Scala di effort: **XS** ≤ mezza giornata · **S** ½–1 giorno · **M** 2–3
   - DX neutro.
   - AX positivo: comportamento fissato da un test con un nome esplicito.
 - **Risultato atteso:** comportamento dichiarato e protetto.
+- **Stato: COMPLETED (2026-11-11).** Branch `consolidamento/fase-2`.
+  - **Intervento realizzato:** nel blocco di conferma, dopo «Sì, elimina» e «Annulla», un paragrafo `.message.reimport` con la frase della scheda. Verificato che è l'unico punto d'ingresso della cancellazione dei movimenti (`grep` su `deleteConfirmed`/"Eliminare definitivamente": solo `transactions-table-panel.html`, usato dalla pagina movimenti).
+  - **Test:** spec del pannello "la conferma avverte che un nuovo import li riporterà, e solo la conferma" (fallisce prima del testo, passa dopo); test backend `modules/transactions/transactions.reimport.test.ts`: importa 3 righe, cancella un movimento, reimporta lo stesso file: `imported = 1`, `duplicates = 2`, il movimento torna con lo stesso fingerprint. Passa subito, come previsto.
+  - **Criteri verificati:** frase presente e verificata da spec; test I1 verde; `git diff` non tocca import, fingerprint, schema né `drizzle/`; `npm run check` uscita 0 (backend 1084/1084, frontend 844/844, build).
 
 ### Fase 3 — Conoscenza architetturale
 

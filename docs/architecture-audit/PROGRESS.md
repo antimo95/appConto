@@ -253,3 +253,35 @@ Lo stato corrente e il prossimo passo sono in `HANDOFF.md`; lo stato di ogni att
 
 - Nessuna attività parziale. Prossima: C-04.
 - Il contratto di `dependents` va scritto in `AGENTS.md` (B-01).
+
+---
+
+## Sessione 2026-11-11 (sesta parte) — C-04
+
+- **Branch:** `consolidamento/fase-2`. **Commit iniziale:** `2470868` (C-03). **Commit finale:** quello che contiene C-04.
+
+| ID | Esito |
+|---|---|
+| C-04 | COMPLETED |
+
+### File modificati
+
+- `apps/frontend/src/app/shared/transactions/transactions-table-panel/transactions-table-panel.{html,spec.ts}`.
+- `apps/backend/src/modules/transactions/transactions.reimport.test.ts` (nuovo).
+- `docs/architecture-audit/PLAN.md`, `PROGRESS.md`, `HANDOFF.md`.
+
+### Verifiche
+
+- Spec frontend scritta prima: fallisce senza la frase (843/844), passa dopo.
+- Test backend di caratterizzazione: verde al primo giro (fissa un comportamento esistente).
+- `npm run check`: uscita 0 in 109 s; backend 1084/1084, frontend 844/844, build riuscita.
+- Nessuna modifica a import, fingerprint, schema o migrazioni.
+- Review: diff piccolo, riletto senza subagent.
+
+### Verifiche non eseguite
+
+- Nessuna prova manuale nell'app avviata.
+
+### In sospeso
+
+- Nessuna attività parziale. Fase 2 chiusa. Prossima: B-02 (fase 3).

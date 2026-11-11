@@ -6,14 +6,15 @@ Punto di ingresso per la prossima sessione. Fotografia dello stato operativo: le
 
 - **Ultimo aggiornamento:** 2026-11-11.
 - **Branch:** `consolidamento/fase-2`, da `master` a `46302f9` (merge della fase 1, PR #12). Non pubblicato.
-- **HEAD:** commit di C-03 (vedi `git log --oneline -3`).
-- **Working tree:** pulito dopo il commit di C-03.
-- **Roadmap:** fase 1 chiusa (A-04, A-05a, A-02, A-03, C-06; A-05b BLOCKED da A-01). Fase 2: C-03 COMPLETED, C-04 da fare (PARTIALLY COMPLETED come stato di partenza). DEFERRED fuori perimetro: A-01, E-02, F-05. Osservazione G-03 aperta. Dettaglio in `PLAN.md` §3.
+- **HEAD:** commit di C-04 (vedi `git log --oneline -3`); prima `2470868` (C-03).
+- **Working tree:** pulito dopo il commit di C-04.
+- **Roadmap:** fasi 1 e 2 chiuse (A-04, A-05a, A-02, A-03, C-06, C-03, C-04 COMPLETED; A-05b BLOCKED da A-01). Prossima: fase 3. DEFERRED fuori perimetro: A-01, E-02, F-05. Osservazione G-03 aperta. Dettaglio in `PLAN.md` §3.
 
 ## Ultimo lavoro completato
 
-- **C-03 (LO1):** un movimento d'origine di prestiti non cambia tipo finché esiste un prestito (409); la regola D9 usa lo stesso meccanismo (`requiredType` sui legami). Il frontend disabilita la select del tipo, con il motivo, solo se il tipo attuale è già quello richiesto: le righe legacy restano correggibili verso `LOAN`.
-- Evidenze: scheda C-03 in `PLAN.md`, SM4 in `STATE_MACHINES.md`, `PROGRESS.md`.
+- **C-03 (LO1):** il tipo di un movimento d'origine di prestiti è bloccato (409 dal backend, select disabilitata con motivo nel frontend). D9 usa lo stesso `requiredType`.
+- **C-04 (I1):** la conferma di cancellazione avverte che un nuovo import dello stesso estratto riporterà i movimenti; un test di caratterizzazione fissa il comportamento.
+- Evidenze: schede C-03 e C-04 in `PLAN.md`, SM4 in `STATE_MACHINES.md`, `PROGRESS.md`.
 
 ## Lavoro in corso
 
@@ -21,18 +22,17 @@ Nessuna attività parziale.
 
 ## Prossima attività
 
-- **ID:** C-04 — I1: la conferma di cancellazione dichiara la possibile reimportazione.
-- **Perché ora:** seconda e ultima attività della fase 2 (§7: C-03 → C-04). XS. Decisione I1 definitiva (§2.2): comportamento invariato, nessuna tombstone, tabella, migrazione o modifica alla deduplicazione.
+- **ID:** B-02 — README eseguibile (fase 3, ordine §7: B-02 → B-03 → B-01).
+- **Perché ora:** fase 3, ora che LO1 e I1 sono implementate e si possono documentare.
 - **Prerequisiti:** A-05a (completata).
-- **File da esaminare:** `apps/frontend/src/app/shared/transactions/transactions-table-panel/transactions-table-panel.html` (blocco di conferma "Eliminare definitivamente?", intorno a `:51-60`), `transactions-table-panel.spec.ts`, `features/transactions/transactions-delete.spec.ts`; per il test backend `modules/import/` o `modules/transactions/` (`transactions.delete.test.ts`).
-- **Progetto deciso:** frase "Se reimporti un estratto conto che li contiene, questi movimenti verranno importati di nuovo." nel blocco di conferma; test di caratterizzazione backend (import, cancellazione, reimport: il movimento torna, gli altri sono duplicati). Il test passa subito: fissa un comportamento esistente.
-- **Primo passo consigliato:** spec frontend che cerca la frase nel blocco di conferma (fallisce), poi il testo; poi il test backend.
-- **Dopo C-04:** fase 3 (B-02 → B-03 → B-01), con `AGENTS.md` che deve riportare il contratto di `dependents` e le regole LO1/I1.
+- **Cosa fare** (scheda B-02 in `PLAN.md`): correggere il percorso del database nel `README.md` (il file reale è `database.sqlite`, precedenza di `DATA_ROOT` in `apps/backend/src/paths.ts`), elencare le variabili d'ambiente, citare `npm run check`.
+- **Poi:** B-03 (`docs/architecture.md`: elenco reale degli 11 moduli, regole false da correggere, LO1 e I1 ora implementate) e B-01 (`AGENTS.md` < 120 righe, con il contratto di `dependents` in `updateType`, le regole LO1/I1, `npm run check`).
+- **Pubblicazione:** il branch `consolidamento/fase-2` contiene C-03 e C-04 e non è ancora pubblicato; chiedere al proprietario se pubblicarlo ora o a fine fase 3.
 - **Da non dimenticare:** G-03, `scripts/verify-package.mjs` attende 22 categorie invece di 24; `verify:package` è 12/17 per questa causa.
 
 ## Verifiche
 
-- **Ultimo `npm run check`:** 2026-11-11, dopo C-03: uscita 0, 110 s (backend 1083/1083, frontend 843/843, build ok).
+- **Ultimo `npm run check`:** 2026-11-11, dopo C-04: uscita 0, 109 s (backend 1084/1084, frontend 844/844, build ok).
 - **Ultimo `npm run verify:package`:** 12/17; i 5 fallimenti dipendono da G-03, non dalle attività svolte.
 - **Non eseguito:** doppio clic manuale (sostituito da prova scriptata); prove con antivirus aggressivo, OneDrive, chiavette FAT/exFAT.
 - **Ambiente:** Windows 11, Node v24.11.1. Comandi eseguiti da Git Bash e PowerShell. Le righe "Not implemented: HTMLCanvasElement's getContext()" nei test frontend sono avvisi di jsdom.
@@ -53,5 +53,5 @@ Nessuna attività parziale.
 1. Leggere questo file, poi la scheda della prossima attività in `PLAN.md` §6 e l'ultima sezione di `PROGRESS.md`.
 2. Verificare `git branch --show-current`, `git rev-parse --short HEAD`, `git status --porcelain` e confrontarli con "Stato generale". Se divergono, aggiornare questo file prima di continuare.
 3. Eseguire `npm run check` per confermare che la base è verde (circa 2 minuti).
-4. Riprendere da C-04 (`PLAN.md` §6, Fase 2).
-5. A fine attività: `npm run check`; aggiornare `PLAN.md` §3 e la scheda, aggiungere una sezione a `PROGRESS.md`, riscrivere questo file. Aggiornare `STATE_MACHINES.md` se cambia il comportamento implementato (C-04 non lo cambia: aggiungere solo una nota su SM5/I1 se utile).
+4. Riprendere da B-02 (`PLAN.md` §6, Fase 3).
+5. A fine attività: `npm run check`; aggiornare `PLAN.md` §3 e la scheda, aggiungere una sezione a `PROGRESS.md`, riscrivere questo file. Aggiornare `STATE_MACHINES.md` solo se cambia il comportamento implementato (la fase 3 è documentazione: di norma no).
