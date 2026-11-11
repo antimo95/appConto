@@ -32,6 +32,13 @@ export type PayslipSection = (typeof PAYSLIP_SECTIONS)[number];
 export const LEAVE_TYPES = ['FERIE', 'PAR'] as const;
 export type LeaveType = (typeof LEAVE_TYPES)[number];
 
+/**
+ * Il tipo di cedolino: un mese può averne più di uno (tredicesima, conguaglio…).
+ * Confronti, andamento e verifica ferie considerano solo gli ordinari.
+ */
+export const PAYSLIP_KINDS = ['ordinary', 'thirteenth', 'fourteenth', 'adjustment'] as const;
+export type PayslipKind = (typeof PAYSLIP_KINDS)[number];
+
 /** Una riga del cedolino. */
 export interface PayslipItem {
   /** Codice della voce, quando il cedolino lo stampa. */
@@ -62,6 +69,7 @@ export interface LeaveBalance {
 export interface PayslipData {
   /** Mese di competenza, `YYYY-MM`. */
   period: string;
+  kind: PayslipKind;
   employer: string | null;
   totalEarningsCents: number;
   totalDeductionsCents: number;
@@ -192,6 +200,9 @@ const leaveBalancesSchema = z
 
 const payslipDataShape = {
   period: periodSchema,
+  // Nessun default qui: nella correzione `.partial()` lo applicherebbe lo stesso
+  // e un PATCH senza `kind` riporterebbe il cedolino a ordinario.
+  kind: z.enum(PAYSLIP_KINDS, { error: 'Tipo di cedolino non valido.' }),
   employer: optionalText(200),
   totalEarningsCents: nonNegativeCents,
   totalDeductionsCents: nonNegativeCents,
@@ -213,6 +224,7 @@ export const newPayslipSchema = z.object({
     .optional()
     .default(false),
   ...payslipDataShape,
+  kind: z.enum(PAYSLIP_KINDS, { error: 'Tipo di cedolino non valido.' }).default('ordinary'),
 }, { error: BODY_ERROR });
 
 /** Correzione di un cedolino già confermato: si indica solo ciò che cambia. */

@@ -18,8 +18,10 @@ export const payslips = sqliteTable(
   'payslips',
   {
     id: text('id').primaryKey(),
-    /** Mese di competenza, `YYYY-MM`: uno solo per mese. */
+    /** Mese di competenza, `YYYY-MM`: uno per mese e per tipo. */
     period: text('period').notNull(),
+    /** `ordinary`, `thirteenth`, `fourteenth`, `adjustment`. */
+    kind: text('kind').notNull().default('ordinary'),
     employer: text('employer'),
     fileName: text('file_name').notNull(),
     /** SHA-256 del PDF: lo stesso file non entra due volte. */
@@ -35,7 +37,7 @@ export const payslips = sqliteTable(
     workedHours: real('worked_hours'),
   },
   (table) => [
-    uniqueIndex('payslips_period_unique').on(table.period),
+    uniqueIndex('payslips_period_kind_unique').on(table.period, table.kind),
     uniqueIndex('payslips_sha256_unique').on(table.sha256),
   ],
 );

@@ -108,3 +108,48 @@ describe('migrazione 0010 -> 0011 (il PDF passa nel database)', () => {
     }
   });
 });
+
+/** Un cedolino come lo scriveva la versione 0011, prima del tipo di cedolino. */
+function cedolinoV0011(sqlite: ReturnType<typeof openSqlite>, id: string, period: string, kind?: string): void {
+  const colonnaKind = kind === undefined ? '' : ', kind';
+  const valoreKind = kind === undefined ? '' : `, '${kind}'`;
+  sqlite
+    .prepare(
+      `insert into payslips (id, period, employer, file_name, sha256, imported_at, parser_id,
+         total_earnings_cents, total_deductions_cents, net_cents${colonnaKind})
+       values (?, ?, null, 'cedolino.pdf', ?, '2026-11-04T10:00:00.000Z', 'manual', 1, 0, 1${valoreKind})`,
+    )
+    .run(id, period, `hash-${id}`);
+}
+
+describe('migrazione 0011 -> 0012 (tipo di cedolino)', () => {
+  it('i cedolini esistenti diventano ordinari e un mese può avere un secondo tipo, una volta sola', () => {
+    const file = nuovoFile();
+    migrateUntil(file, 11);
+
+    const prima = openSqlite(file);
+    try {
+      cedolinoV0011(prima, 'p-1', '2026-08');
+      cedolinoV0011(prima, 'p-2', '2026-09');
+    } finally {
+      prima.close();
+    }
+
+    migraTutto(file);
+
+    const dopo = openSqlite(file);
+    try {
+      assert.deepEqual(dopo.prepare('select id, kind from payslips order by id').all(), [
+        { id: 'p-1', kind: 'ordinary' },
+        { id: 'p-2', kind: 'ordinary' },
+      ]);
+
+      cedolinoV0011(dopo, 'p-3', '2026-09', 'thirteenth');
+      assert.throws(() => cedolinoV0011(dopo, 'p-4', '2026-09', 'thirteenth'), /UNIQUE/);
+      assert.throws(() => cedolinoV0011(dopo, 'p-5', '2026-09', 'ordinary'), /UNIQUE/);
+      assert.throws(() => cedolinoV0011(dopo, 'p-6', '2026-09'), /UNIQUE/);
+    } finally {
+      dopo.close();
+    }
+  });
+});

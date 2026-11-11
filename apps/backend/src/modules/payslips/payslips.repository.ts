@@ -1,7 +1,15 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, desc, eq, gte, inArray, isNull, lte, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, isNull, lte, sql, type SQL } from 'drizzle-orm';
 import { db } from '../../db/client.js';
-import type { LeaveBalance, LeaveType, Payslip, PayslipItem, PayslipSection } from './payslip.model.js';
+import {
+  PAYSLIP_KINDS,
+  type LeaveBalance,
+  type LeaveType,
+  type Payslip,
+  type PayslipItem,
+  type PayslipKind,
+  type PayslipSection,
+} from './payslip.model.js';
 import { payslipDocuments, payslipItems, payslipLeaveBalances, payslips } from './payslips.schema.js';
 
 /**
@@ -53,6 +61,11 @@ function periodRange(from: string | null, to: string | null): SQL | undefined {
   return conditions.length === 0 ? undefined : and(...conditions);
 }
 
+/** L'ordine dei tipi a parità di mese: l'ordinario per primo. */
+function kindRank(kind: string): number {
+  return PAYSLIP_KINDS.indexOf(kind as PayslipKind);
+}
+
 function itemRows(payslipId: string, items: readonly PayslipItem[]) {
   return items.map((item, position) => ({ id: randomUUID(), payslipId, position, ...item }));
 }
@@ -83,6 +96,7 @@ function hydrate(rows: readonly PayslipRow[]): Payslip[] {
 
   return rows.map((row) => ({
     ...row,
+    kind: row.kind as PayslipKind,
     items: items
       .filter((item) => item.payslipId === row.id)
       .map((item) => ({
@@ -106,21 +120,27 @@ function hydrate(rows: readonly PayslipRow[]): Payslip[] {
 }
 
 export const payslipsRepository = {
+  /** Per mese nella direzione richiesta; a parità di mese l'ordinario viene per primo. */
   list(filter: PayslipListFilter): PayslipRow[] {
-    const direction = filter.direction === 'asc' ? asc : desc;
+    const sign = filter.direction === 'asc' ? 1 : -1;
 
     return db
       .select()
       .from(payslips)
       .where(periodRange(filter.from, filter.to))
-      .orderBy(direction(payslips.period))
-      .all();
+      .all()
+      .sort((a, b) => sign * a.period.localeCompare(b.period) || kindRank(a.kind) - kindRank(b.kind));
   },
 
-  /** I cedolini completi fino a `to` compreso: servono ai confronti. */
-  listComplete(to: string | null): Payslip[] {
+  /** I cedolini completi di un tipo fino a `to` compreso: servono ai confronti, che sono fra ordinari. */
+  listComplete(to: string | null, kind: PayslipKind = 'ordinary'): Payslip[] {
     return hydrate(
-      db.select().from(payslips).where(periodRange(null, to)).orderBy(asc(payslips.period)).all(),
+      db
+        .select()
+        .from(payslips)
+        .where(and(periodRange(null, to), eq(payslips.kind, kind)))
+        .orderBy(asc(payslips.period))
+        .all(),
     );
   },
 
@@ -130,8 +150,14 @@ export const payslipsRepository = {
     return row === undefined ? null : (hydrate([row])[0] ?? null);
   },
 
-  findRowByPeriod(period: string): PayslipRow | null {
-    return db.select().from(payslips).where(eq(payslips.period, period)).get() ?? null;
+  findRowByPeriodAndKind(period: string, kind: PayslipKind): PayslipRow | null {
+    return (
+      db
+        .select()
+        .from(payslips)
+        .where(and(eq(payslips.period, period), eq(payslips.kind, kind)))
+        .get() ?? null
+    );
   },
 
   findRowBySha256(sha256: string): PayslipRow | null {

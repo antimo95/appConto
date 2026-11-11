@@ -10,6 +10,7 @@ import {
   payslipUpdateSchema,
   periodSchema,
   type Payslip,
+  type PayslipKind,
 } from './payslip.model.js';
 import { PAYSLIP_PARSERS } from './parsing/parsers.js';
 import { extractPayslip, type PayslipParser } from './parsing/payslip-parser.js';
@@ -78,6 +79,7 @@ function toSummary(row: PayslipRow): PayslipSummary {
   return {
     id: row.id,
     period: row.period,
+    kind: row.kind as PayslipKind,
     employer: row.employer,
     fileName: row.fileName,
     importedAt: row.importedAt,
@@ -176,7 +178,8 @@ export function createPayslipsService(deps: PayslipsServiceDeps) {
       });
 
       const period = extraction.draft.period;
-      const existing = period === null ? null : repository.findRowByPeriod(period);
+      // Il parser non riconosce il tipo: la bozza è sempre ordinaria.
+      const existing = period === null ? null : repository.findRowByPeriodAndKind(period, 'ordinary');
 
       return {
         id,
@@ -186,7 +189,10 @@ export function createPayslipsService(deps: PayslipsServiceDeps) {
         confidence: extraction.confidence,
         warnings: extraction.warnings,
         draft: extraction.draft,
-        conflict: existing === null ? null : { payslipId: existing.id, period: existing.period },
+        conflict:
+          existing === null
+            ? null
+            : { payslipId: existing.id, period: existing.period, kind: existing.kind as PayslipKind },
         expiresAt: new Date(expiresAt).toISOString(),
       };
     },
@@ -222,7 +228,7 @@ export function createPayslipsService(deps: PayslipsServiceDeps) {
 
       rejectDuplicateFile(analysis.sha256);
 
-      const existing = repository.findRowByPeriod(data.period);
+      const existing = repository.findRowByPeriodAndKind(data.period, data.kind);
       if (existing !== null && !data.replaceExisting) {
         throw new ConflictError(
           `Esiste già un cedolino per ${monthLabel(data.period)}: conferma la sostituzione oppure annulla.`,
@@ -284,7 +290,7 @@ export function createPayslipsService(deps: PayslipsServiceDeps) {
       );
 
       if (header.period !== undefined && header.period !== current.period) {
-        const other = repository.findRowByPeriod(header.period);
+        const other = repository.findRowByPeriodAndKind(header.period, current.kind);
         if (other !== null) {
           throw new ConflictError(`Esiste già un cedolino per ${monthLabel(header.period)}.`);
         }

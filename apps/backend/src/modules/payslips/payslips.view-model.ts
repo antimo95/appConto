@@ -4,7 +4,7 @@ import type {
   ExtractionWarning,
   PayslipDraft,
 } from './parsing/payslip-parser.js';
-import type { LeaveBalance, LeaveType, PayslipItem, PayslipSection } from './payslip.model.js';
+import type { LeaveBalance, LeaveType, PayslipItem, PayslipKind, PayslipSection } from './payslip.model.js';
 
 export type { ExtractionConfidence, ExtractionStatus, ExtractionWarning, PayslipDraft };
 
@@ -21,6 +21,7 @@ export type { ExtractionConfidence, ExtractionStatus, ExtractionWarning, Payslip
 export interface PeriodConflict {
   payslipId: string;
   period: string;
+  kind: PayslipKind;
 }
 
 /** Risposta di `POST /payslip-analyses`. */
@@ -43,6 +44,7 @@ export interface PayslipAnalysisViewModel {
 export interface PayslipSummary {
   id: string;
   period: string;
+  kind: PayslipKind;
   employer: string | null;
   fileName: string;
   importedAt: string;
