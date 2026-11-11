@@ -13,6 +13,7 @@ import {
   pdfOttobre,
   pdfOttobreRistampa,
   pdfSettembre,
+  pdfSettembreVariante,
   reviewPanel,
   uploadForReview,
 } from './support/cedolini.js';
@@ -315,11 +316,133 @@ test.describe('Cedolini', () => {
       await review.getByLabel('Netto in busta (€)').fill('1700,00');
       await review.getByRole('button', { name: 'Conferma e salva' }).click();
 
-      await expect(page.getByRole('alert')).toHaveText('Analisi non trovata o scaduta: carica di nuovo il PDF.');
+      // Un 404 non è un errore di salvataggio: la revisione mostra l'avviso dell'analisi scaduta.
+      await expect(page.getByRole('alert')).toHaveCount(1);
+      await expect(page.getByRole('alert')).toContainText(
+        "L'analisi è scaduta: il PDF non è più sul server. I valori che hai scritto sono conservati.",
+      );
+      await expect(page.getByRole('alert').getByRole('button', { name: 'Ricarica il PDF' })).toBeEnabled();
       // La revisione resta aperta con i valori corretti a mano.
       await expect(review).toBeVisible();
       await expect(review.getByLabel('Netto in busta (€)')).toHaveValue('1700,00');
       expect(await listPayslips(request)).toEqual([]);
+    });
+  });
+
+  test.describe('12. tipi, modifica, PDF, file grande e modifiche non salvate', () => {
+    test("una tredicesima dello stesso mese convive con l'ordinario e non cambia il confronto", async ({
+      page,
+      request,
+    }) => {
+      await importPayslip(request, pdfSettembre());
+      await importPayslip(request, pdfOttobre());
+      await openPayslips(page);
+      await expect(payslipRows(page)).toHaveCount(2);
+
+      const review = await uploadForReview(page, pdfSettembreVariante());
+      const conflitto = review.getByText('Esiste già un cedolino ordinario per settembre 2026.');
+      await expect(conflitto).toBeVisible();
+      await review.getByLabel('Tipo di cedolino').selectOption({ label: 'Tredicesima' });
+      await expect(conflitto).toBeHidden();
+      await review.getByRole('button', { name: 'Conferma e salva' }).click();
+      await expect(review).toBeHidden();
+
+      await expect(page).toHaveURL(/period=2026-09&kind=thirteenth$/);
+      await expect(payslipRows(page)).toHaveCount(3);
+      await expect(payslipRows(page).getByRole('button', { name: 'settembre 2026' })).toHaveCount(2);
+      await expect(payslipRows(page).filter({ hasText: 'Tredicesima' })).toHaveCount(1);
+      await expect(payslipRows(page).filter({ hasText: 'Tredicesima' })).toContainText('1600,00 €');
+      await expect(page.getByText('Il confronto riguarda solo i cedolini ordinari.')).toBeVisible();
+
+      // Il confronto di ottobre resta quello con il settembre ordinario.
+      await payslipRows(page).getByRole('button', { name: 'ottobre 2026' }).click();
+      await expect(page).toHaveURL(/\/payslips\?period=2026-10$/);
+      await expect(kpi(page, 'ottobre 2026', 'Netto')).toContainText('+6,3%');
+      await expect(kpi(page, 'ottobre 2026', 'Netto')).toContainText('rispetto a settembre 2026');
+      const confronto = monthPanel(page, 'Confronto con il mese precedente');
+      await expect(confronto.getByRole('listitem')).toHaveText([
+        'Netto +100,00 € (+6,3%)',
+        'Competenze +100,00 € (+4,8%)',
+        'Trattenute 0,00 € (0%)',
+      ]);
+    });
+
+    test("un valore modificato dall'interfaccia resta dopo il ricaricamento", async ({ page, request }) => {
+      await importPayslip(request, pdfOttobre());
+      await openPayslips(page);
+
+      const dettaglio = monthPanel(page, 'Dettaglio');
+      await dettaglio.getByRole('button', { name: 'Modifica' }).click();
+      await dettaglio.getByLabel('Netto in busta (€)').fill('1705,25');
+      await dettaglio.getByRole('button', { name: 'Salva modifiche' }).click();
+
+      await expect(dettaglio.getByRole('button', { name: 'Modifica' })).toBeVisible();
+      await expect(kpi(page, 'ottobre 2026', 'Netto')).toContainText('1705,25 €');
+
+      await page.reload();
+      await expect(page.getByText('Caricamento in corso…')).toHaveCount(0);
+      await expect(kpi(page, 'ottobre 2026', 'Netto')).toContainText('1705,25 €');
+      await expect(payslipRows(page).first().getByRole('cell').nth(1)).toHaveText('1705,25 €');
+      const [salvato] = await listPayslips(request);
+      expect(await (await request.get(`/api/payslips/${salvato!.id}`)).json()).toMatchObject({ netCents: 170525 });
+    });
+
+    test('il PDF originale si apre dal dettaglio', async ({ page, request }) => {
+      const { id } = await importPayslip(request, pdfOttobre());
+      await openPayslips(page);
+
+      const href = await monthPanel(page, 'Dettaglio').getByRole('link', { name: 'Apri PDF' }).getAttribute('href');
+      expect(href).toBe(`/api/payslips/${id}/document`);
+
+      const risposta = await page.request.get(href!);
+      expect(risposta.status()).toBe(200);
+      expect(risposta.headers()['content-type']).toContain('application/pdf');
+      expect(risposta.headers()['content-disposition']).toContain('cedolino-2026-10.pdf');
+      expect((await risposta.body()).subarray(0, 4).toString('latin1')).toBe('%PDF');
+    });
+
+    test("un file oltre 10 MB viene rifiutato senza chiedere l'analisi", async ({ page }) => {
+      await openPayslips(page);
+      const richieste: string[] = [];
+      page.on('request', (r) => {
+        if (r.url().includes('/api/payslip-analyses')) richieste.push(r.url());
+      });
+
+      await fileInput(page).setInputFiles({
+        name: 'enorme.pdf',
+        mimeType: 'application/pdf',
+        buffer: Buffer.alloc(10 * 1024 * 1024 + 1),
+      });
+
+      await expect(page.getByRole('alert')).toHaveText('Il file supera il limite di 10 MB.');
+      await expect(reviewPanel(page)).toBeHidden();
+      expect(richieste).toEqual([]);
+    });
+
+    test('cambiare mese con una modifica non salvata chiede conferma e, rifiutando, lascia il modulo aperto', async ({
+      page,
+      request,
+    }) => {
+      await importPayslip(request, pdfSettembre());
+      await importPayslip(request, pdfOttobre());
+      await openPayslips(page);
+
+      const dettaglio = monthPanel(page, 'Dettaglio');
+      await dettaglio.getByRole('button', { name: 'Modifica' }).click();
+      const netto = dettaglio.getByLabel('Netto in busta (€)');
+      await netto.fill('1111,00');
+
+      const messaggi: string[] = [];
+      page.once('dialog', (dialog) => {
+        messaggi.push(dialog.message());
+        void dialog.dismiss();
+      });
+      await payslipRows(page).getByRole('button', { name: 'settembre 2026' }).click();
+
+      await expect.poll(() => messaggi).toEqual(['Hai modifiche non salvate. Scartarle?']);
+      await expect(monthPanel(page, 'ottobre 2026')).toBeVisible();
+      await expect(netto).toHaveValue('1111,00');
+      await expect(dettaglio.getByRole('button', { name: 'Salva modifiche' })).toBeVisible();
     });
   });
 });

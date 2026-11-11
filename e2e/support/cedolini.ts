@@ -41,8 +41,8 @@ export function pdfOttobre(): PdfFile {
  * +100,00 €, trattenute 0; Retribuzione «Variata», Indennità «Nuova»,
  * Premio produzione «Scomparsa».
  */
-export function pdfSettembre(): PdfFile {
-  const edit = (lines: FixtureLine[]): FixtureLine[] => [
+function settembreEdit(lines: FixtureLine[]): FixtureLine[] {
+  return [
     ...lines
       // Via la riga dell'indennità (descrizione e importo).
       .filter(([y]) => y !== 442.0 && y !== 441.9)
@@ -56,8 +56,25 @@ export function pdfSettembre(): PdfFile {
     [421.2, 38.7, 'Z50000 Premio produzione'],
     [421.1, 541.0, '60,00'],
   ];
+}
 
-  return pdf('cedolino-settembre-2026.pdf', syntheticPayslipPdf({ month: 'Settembre 2026', edit }));
+export function pdfSettembre(): PdfFile {
+  return pdf('cedolino-settembre-2026.pdf', syntheticPayslipPdf({ month: 'Settembre 2026', edit: settembreEdit }));
+}
+
+/**
+ * Settembre 2026 con un netto diverso (1.600,00 € invece di 1.598,00 €): stesso
+ * mese, file diverso. Serve a caricare due cedolini dello stesso mese, per
+ * esempio un ordinario e una tredicesima.
+ */
+export function pdfSettembreVariante(): PdfFile {
+  const edit = (lines: FixtureLine[]): FixtureLine[] =>
+    settembreEdit(lines).map((line): FixtureLine => {
+      const [y, x] = line;
+      return y === 93.5 && x === 510.2 ? [y, x, '1.600,00 €'] : line;
+    });
+
+  return pdf('cedolino-settembre-2026-variante.pdf', syntheticPayslipPdf({ month: 'Settembre 2026', edit }));
 }
 
 /**

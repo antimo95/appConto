@@ -10,6 +10,21 @@ La funzionalità «Cedolini» ha tre livelli di test:
 
 `npm run test:payslips` esegue i tre livelli in sequenza e si ferma al primo che fallisce.
 
+Test aggiunti dopo l'audit, che conviene sapere dove cercare:
+
+- Backend, in `apps/backend/src/modules/payslips/`: `payslip-analysis.store.test.ts`
+  (analisi temporanee), `payslip.model.test.ts` (tipi e modello del cedolino) e
+  `frontend-contract.test.ts` (la forma delle risposte che il frontend si aspetta).
+- Backend, `apps/backend/src/db/migrations.payslips.test.ts`: le migrazioni dei
+  cedolini. **Non** è compreso in `npm run test:payslips:backend` (cerca solo sotto
+  `modules/`, `maintenance/` e `src/*payslips*.test.ts`): gira con `npm run test:backend`.
+- Backend, `apps/backend/src/modules/payslips/parsing/samples.local.test.ts`: legge i
+  cedolini veri in `samples/` e si attiva solo se la cartella contiene PDF; senza, i
+  test vengono saltati. `samples/` non è nel repository.
+- Frontend, `apps/frontend/src/app/core/http-error.spec.ts`: i messaggi di errore HTTP
+  usati dalla pagina; sta fuori da `features/payslips`, quindi non fa parte di
+  `npm run test:payslips:frontend` ma di `npm run test:frontend`.
+
 Tutti i comandi si lanciano dalla radice del repository.
 
 ## Prima volta
