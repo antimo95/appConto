@@ -1,6 +1,9 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { PayslipReview } from './payslip-review';
-import { PayslipAnalysis, PayslipDraft, ReviewResult } from './payslip.model';
+import { PayslipAnalysis, PayslipDraft, PayslipKind, ReviewResult } from './payslip.model';
+
+type Taken = { period: string; kind: PayslipKind };
+const ordinary = (period: string): Taken => ({ period, kind: 'ordinary' });
 
 const draft = (overrides: Partial<PayslipDraft> = {}): PayslipDraft => ({
   period: '2026-09',
@@ -52,12 +55,12 @@ describe('PayslipReview', () => {
   const render = async (
     data: PayslipDraft = draft(),
     info: PayslipAnalysis | null = analysis(),
-    takenPeriods: readonly string[] = []
+    taken: readonly Taken[] = []
   ): Promise<void> => {
     fixture = TestBed.createComponent(PayslipReview);
     fixture.componentRef.setInput('draft', data);
     fixture.componentRef.setInput('analysis', info);
-    fixture.componentRef.setInput('takenPeriods', takenPeriods);
+    fixture.componentRef.setInput('taken', taken);
     emitted = [];
     cancelled = 0;
     fixture.componentInstance.confirmed.subscribe((result) => emitted.push(result));
@@ -190,9 +193,9 @@ describe('PayslipReview', () => {
   });
 
   it('con un conflitto la conferma richiede di sostituire il cedolino esistente', async () => {
-    await render(draft(), analysis({ conflict: { payslipId: 'p-9', period: '2026-09' } }));
+    await render(draft(), analysis({ conflict: { payslipId: 'p-9', period: '2026-09', kind: 'ordinary' } }));
 
-    expect(host().textContent).toContain('Esiste già un cedolino per settembre 2026.');
+    expect(host().textContent).toContain('Esiste già un cedolino ordinario per settembre 2026.');
     expect(confirmButton().disabled).toBe(true);
 
     host().querySelector<HTMLInputElement>('.conflict input')!.click();
@@ -205,12 +208,12 @@ describe('PayslipReview', () => {
   });
 
   it('il conflitto segue il mese digitato, non solo quello letto dal PDF', async () => {
-    await render(draft(), analysis(), ['2026-08']);
+    await render(draft(), analysis(), [ordinary('2026-08')]);
 
     expect(host().querySelector('.conflict')).toBeNull();
     await type(field('period'), '2026-08');
 
-    expect(host().textContent).toContain('Esiste già un cedolino per agosto 2026.');
+    expect(host().textContent).toContain('Esiste già un cedolino ordinario per agosto 2026.');
     expect(confirmButton().disabled).toBe(true);
 
     host().querySelector<HTMLInputElement>('.conflict input')!.click();
@@ -222,8 +225,8 @@ describe('PayslipReview', () => {
   });
 
   it('corretto il mese verso uno libero, il conflitto sparisce e non si sostituisce nulla', async () => {
-    await render(draft(), analysis({ conflict: { payslipId: 'p-9', period: '2026-09' } }), [
-      '2026-09'
+    await render(draft(), analysis({ conflict: { payslipId: 'p-9', period: '2026-09', kind: 'ordinary' } }), [
+      ordinary('2026-09')
     ]);
 
     host().querySelector<HTMLInputElement>('.conflict input')!.click();
@@ -238,9 +241,9 @@ describe('PayslipReview', () => {
   });
 
   it('cambiando mese la sostituzione va confermata di nuovo', async () => {
-    await render(draft(), analysis({ conflict: { payslipId: 'p-9', period: '2026-09' } }), [
-      '2026-08',
-      '2026-09'
+    await render(draft(), analysis({ conflict: { payslipId: 'p-9', period: '2026-09', kind: 'ordinary' } }), [
+      ordinary('2026-08'),
+      ordinary('2026-09')
     ]);
 
     host().querySelector<HTMLInputElement>('.conflict input')!.click();
@@ -252,7 +255,7 @@ describe('PayslipReview', () => {
   });
 
   it('in modifica, un mese già occupato da un altro cedolino blocca la conferma', async () => {
-    await render(draft(), null, ['2026-08', '2026-09']);
+    await render(draft(), null, [ordinary('2026-08'), ordinary('2026-09')]);
 
     // Il mese del cedolino che si modifica è suo: nessun errore.
     expect(field('period').getAttribute('aria-invalid')).toBeNull();
@@ -647,7 +650,7 @@ describe('PayslipReview', () => {
 
     it('è vero dopo aver toccato una voce, un saldo o la casella di sostituzione', async () => {
       const dirtyAfter = async (action: () => void | Promise<void>): Promise<boolean> => {
-        await render(draft(), analysis({ conflict: { payslipId: 'p-1', period: '2026-09' } }));
+        await render(draft(), analysis({ conflict: { payslipId: 'p-1', period: '2026-09', kind: 'ordinary' } }));
         await action();
         await fixture.whenStable();
         return fixture.componentInstance.isDirty();
@@ -658,6 +661,103 @@ describe('PayslipReview', () => {
       expect(await dirtyAfter(() => host().querySelector<HTMLButtonElement>('.add-leave')!.click())).toBe(true);
       expect(await dirtyAfter(() => host().querySelector<HTMLButtonElement>('.remove-leave')!.click())).toBe(true);
       expect(await dirtyAfter(() => host().querySelector<HTMLInputElement>('.conflict input')!.click())).toBe(true);
+    });
+  });
+
+  describe('tipo di cedolino', () => {
+    const kindSelect = (): HTMLSelectElement => host().querySelector<HTMLSelectElement>('#payslip-kind')!;
+    const choose = async (kind: PayslipKind): Promise<void> => {
+      kindSelect().value = kind;
+      kindSelect().dispatchEvent(new Event('change'));
+      await fixture.whenStable();
+    };
+    const conflictWith = (kind: PayslipKind): PayslipAnalysis =>
+      analysis({ conflict: { payslipId: 'p-9', period: '2026-09', kind } });
+
+    it('la select, etichettata, offre i quattro tipi e parte da ordinario', async () => {
+      await render();
+
+      expect(host().querySelector('label[for="payslip-kind"]')?.textContent).toContain('Tipo di cedolino');
+      expect(Array.from(kindSelect().options).map((option) => [option.value, option.textContent?.trim()])).toEqual([
+        ['ordinary', 'Ordinario'],
+        ['thirteenth', 'Tredicesima'],
+        ['fourteenth', 'Quattordicesima'],
+        ['adjustment', 'Conguaglio']
+      ]);
+      expect(kindSelect().value).toBe('ordinary');
+    });
+
+    it("parte dal tipo della bozza quando ce l'ha", async () => {
+      await render(draft({ kind: 'adjustment' }), null);
+
+      expect(kindSelect().value).toBe('adjustment');
+    });
+
+    it("il conflitto con l'ordinario sparisce scegliendo Tredicesima", async () => {
+      await render(draft(), conflictWith('ordinary'), [ordinary('2026-09')]);
+      expect(host().querySelector('.conflict')).not.toBeNull();
+
+      await choose('thirteenth');
+
+      expect(host().querySelector('.conflict')).toBeNull();
+      expect(confirmButton().disabled).toBe(false);
+    });
+
+    it('stesso mese e stesso tipo già in archivio: conflitto, con il tipo nel testo', async () => {
+      await render(draft(), analysis(), [{ period: '2026-09', kind: 'thirteenth' }]);
+      expect(host().querySelector('.conflict')).toBeNull();
+
+      await choose('thirteenth');
+
+      expect(host().querySelector('.conflict')?.textContent).toContain(
+        'Esiste già un cedolino tredicesima per settembre 2026.'
+      );
+      expect(confirmButton().disabled).toBe(true);
+    });
+
+    it('cambiare tipo azzera la casella di sostituzione', async () => {
+      await render(draft(), conflictWith('ordinary'), [
+        ordinary('2026-09'),
+        { period: '2026-09', kind: 'thirteenth' }
+      ]);
+      host().querySelector<HTMLInputElement>('.conflict input')!.click();
+      await fixture.whenStable();
+      expect(host().querySelector<HTMLInputElement>('.conflict input')!.checked).toBe(true);
+
+      await choose('thirteenth');
+
+      expect(host().querySelector<HTMLInputElement>('.conflict input')!.checked).toBe(false);
+      expect(confirmButton().disabled).toBe(true);
+    });
+
+    it('la conferma contiene il tipo scelto', async () => {
+      await render();
+      await choose('fourteenth');
+      confirmButton().click();
+
+      expect(emitted[0].data.kind).toBe('fourteenth');
+    });
+
+    it('cambiare tipo conta come modifica non salvata', async () => {
+      await render();
+      await choose('thirteenth');
+
+      expect(fixture.componentInstance.isDirty()).toBe(true);
+    });
+
+    it('in modifica non confligge con sé stesso, ma sì con un altro cedolino dello stesso tipo', async () => {
+      const saved = [ordinary('2026-09'), { period: '2026-09', kind: 'thirteenth' as const }];
+      await render(draft({ kind: 'thirteenth' }), null, saved);
+
+      expect(field('period').getAttribute('aria-invalid')).toBeNull();
+      expect(confirmButton().disabled).toBe(false);
+
+      await choose('ordinary');
+
+      expect(host().querySelector('#payslip-error-period')?.textContent).toContain(
+        'Esiste già un cedolino ordinario per questo mese.'
+      );
+      expect(confirmButton().disabled).toBe(true);
     });
   });
 });

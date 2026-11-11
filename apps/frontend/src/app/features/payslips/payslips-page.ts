@@ -17,12 +17,19 @@ import { Panel } from '@shared/layout/panel/panel';
 import { SectionHeader } from '@shared/layout/section-header/section-header';
 import { StatCardGrid, StatCardItem } from '@shared/layout/stat-card-grid/stat-card-grid';
 import { Amount } from '@shared/ui/data/amount/amount';
+import { Badge } from '@shared/ui/feedback/badge/badge';
 import { EmptyState } from '@shared/ui/feedback/empty-state/empty-state';
 import { ErrorRetry } from '@shared/ui/feedback/error-retry/error-retry';
 import { PayslipComparisonView } from './payslip-comparison';
 import { PayslipDetailView } from './payslip-detail';
 import { PayslipLeaveOverview } from './payslip-leave-overview';
-import { LEAVE_LABELS, MAX_PAYSLIP_BYTES, centsToEuros, formatLeaveValue } from './payslip-format';
+import {
+  KIND_LABELS,
+  LEAVE_LABELS,
+  MAX_PAYSLIP_BYTES,
+  centsToEuros,
+  formatLeaveValue
+} from './payslip-format';
 import { PayslipReview } from './payslip-review';
 import { PayslipTrend } from './payslip-trend';
 import {
@@ -31,6 +38,7 @@ import {
   PayslipComparison,
   PayslipData,
   PayslipDetail,
+  PayslipKind,
   PayslipList,
   PayslipSummaries,
   PayslipSummary,
@@ -57,6 +65,7 @@ type Phase = 'idle' | 'analyzing' | 'reviewing' | 'saving';
   selector: 'app-payslips-page',
   imports: [
     Amount,
+    Badge,
     EmptyState,
     ErrorRetry,
     PageLayout,
@@ -92,8 +101,10 @@ export class PayslipsPage {
     this.list.hasValue() ? this.list.value().items : []
   );
 
-  /** I mesi già in archivio: la revisione li usa per riconoscere un conflitto sul mese digitato. */
-  protected readonly takenPeriods = computed(() => this.items().map((item) => item.period));
+  /** Mese e tipo già in archivio: la revisione li usa per riconoscere un conflitto su ciò che l'utente ha scelto. */
+  protected readonly taken = computed(() =>
+    this.items().map((item) => ({ period: item.period, kind: item.kind }))
+  );
 
   /**
    * Il sottotitolo dice cosa c'è in archivio; finché è vuoto spiega il flusso.
@@ -112,12 +123,13 @@ export class PayslipsPage {
     return `${String(items.length)} cedolini in archivio, da ${first} a ${last}.`;
   });
 
-  /** Il mese dell'URL, o il più recente se manca o non esiste più. */
+  /** Il mese (e il tipo, ordinario se manca) dell'URL, o il più recente se non esiste più. */
   protected readonly selected = computed<PayslipSummary | null>(() => {
     const items = this.items();
     const requested = this.params().get('period');
+    const kind = this.params().get('kind') ?? 'ordinary';
 
-    return items.find((item) => item.period === requested) ?? items[0] ?? null;
+    return items.find((item) => item.period === requested && item.kind === kind) ?? items[0] ?? null;
   });
 
   protected readonly detail = httpResource<PayslipDetail>(() => {
@@ -163,6 +175,7 @@ export class PayslipsPage {
   protected readonly canModify = computed(() => this.phase() === 'idle' && !this.deleting());
 
   protected readonly formatMonth = formatMonth;
+  protected readonly kindLabels = KIND_LABELS;
   protected readonly euros = centsToEuros;
 
   protected readonly listError = computed(() => {
@@ -325,7 +338,7 @@ export class PayslipsPage {
           this.expired.set(false);
           this.retained.set(null);
           this.phase.set('idle');
-          this.afterChange(saved.period, saved.id);
+          this.afterChange(saved.period, saved.kind, saved.id);
         },
         // La revisione resta aperta: i valori corretti a mano non vanno persi.
         error: (error: unknown) => {
@@ -387,7 +400,7 @@ export class PayslipsPage {
       next: (saved) => {
         this.editing.set(false);
         this.phase.set('idle');
-        this.afterChange(saved.period, saved.id);
+        this.afterChange(saved.period, saved.kind, saved.id);
       },
       error: (error: unknown) => {
         this.actionError.set(toErrorMessage(error));
@@ -414,7 +427,10 @@ export class PayslipsPage {
         this.list.reload();
         this.summaries.reload();
         // Senza `period` la selezione torna al mese più recente rimasto.
-        void this.router.navigate([], { relativeTo: this.route, queryParams: { period: null } });
+        void this.router.navigate([], {
+          relativeTo: this.route,
+          queryParams: { period: null, kind: null }
+        });
       },
       error: (error: unknown) => {
         this.deleting.set(false);
@@ -423,20 +439,25 @@ export class PayslipsPage {
     });
   }
 
-  protected select(period: string): void {
-    // Un altro mese chiude la modifica: il modulo non deve passare a un cedolino diverso.
-    if (period !== this.selected()?.period) {
+  protected select(period: string, kind: PayslipKind = 'ordinary'): void {
+    // Un altro cedolino chiude la modifica: il modulo non deve passare a un cedolino diverso.
+    const current = this.selected();
+    if (period !== current?.period || kind !== current.kind) {
       if (!this.confirmLeave()) {
         return;
       }
       this.editing.set(false);
     }
-    this.go(period);
+    this.go(period, kind);
   }
 
   /** Navigazione interna senza chiedere nulla: dopo un salvataggio non c'è più niente da scartare. */
-  private go(period: string): void {
-    void this.router.navigate([], { relativeTo: this.route, queryParams: { period } });
+  private go(period: string, kind: PayslipKind): void {
+    // L'URL resta `?period=` per gli ordinari: `kind` compare solo per gli altri.
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { period, kind: kind === 'ordinary' ? null : kind }
+    });
   }
 
   /**
@@ -465,13 +486,13 @@ export class PayslipsPage {
   }
 
   /** Dopo un salvataggio tutto ciò che deriva dal cedolino si rilegge, e si sceglie il suo mese. */
-  private afterChange(period: string, savedId: string): void {
+  private afterChange(period: string, kind: PayslipKind, savedId: string): void {
     this.list.reload();
     this.summaries.reload();
     // Lo stesso id non cambia la richiesta del dettaglio: va riletto a mano.
     if (this.selected()?.id === savedId) {
       this.detail.reload();
     }
-    this.go(period);
+    this.go(period, kind);
   }
 }

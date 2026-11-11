@@ -1,6 +1,8 @@
 import {
   CONFIDENCE_LABELS,
   EXTRACTION_STATUS_MESSAGES,
+  KINDS,
+  KIND_LABELS,
   LEAVE_LABELS,
   SECTION_LABELS,
   centsToEuros,
@@ -79,5 +81,15 @@ describe('payslip-format', () => {
     expect(LEAVE_LABELS).toEqual({ FERIE: 'Ferie', PAR: 'P.A.R.' });
     expect(EXTRACTION_STATUS_MESSAGES.incomplete).toContain('incompleta');
     expect(CONFIDENCE_LABELS.low).toContain('bassa');
+  });
+
+  it("ha i quattro tipi di cedolino, l'ordinario per primo, con etichette italiane", () => {
+    expect(KINDS).toEqual(['ordinary', 'thirteenth', 'fourteenth', 'adjustment']);
+    expect(KIND_LABELS).toEqual({
+      ordinary: 'Ordinario',
+      thirteenth: 'Tredicesima',
+      fourteenth: 'Quattordicesima',
+      adjustment: 'Conguaglio'
+    });
   });
 });

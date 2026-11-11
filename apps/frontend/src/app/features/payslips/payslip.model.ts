@@ -8,6 +8,8 @@
 
 export type PayslipSection = 'earning' | 'deduction' | 'employer_contribution' | 'informational';
 export type LeaveType = 'FERIE' | 'PAR';
+/** Un mese può avere più cedolini, uno per tipo; confronti e verifica ferie riguardano solo gli ordinari. */
+export type PayslipKind = 'ordinary' | 'thirteenth' | 'fourteenth' | 'adjustment';
 
 export interface PayslipItem {
   code: string | null;
@@ -30,6 +32,7 @@ export interface LeaveBalance {
 export interface PayslipData {
   /** `YYYY-MM`. */
   period: string;
+  kind: PayslipKind;
   employer: string | null;
   totalEarningsCents: number;
   totalDeductionsCents: number;
@@ -54,6 +57,8 @@ export interface ExtractionWarning {
 /** Ciò che l'estrazione ha trovato: ogni scalare può mancare. */
 export interface PayslipDraft {
   period: string | null;
+  /** Il parser non lo riconosce: nella bozza d'analisi manca, un cedolino salvato lo ha. */
+  kind?: PayslipKind;
   employer: string | null;
   totalEarningsCents: number | null;
   totalDeductionsCents: number | null;
@@ -69,6 +74,7 @@ export interface PayslipDraft {
 export interface PeriodConflict {
   payslipId: string;
   period: string;
+  kind: PayslipKind;
 }
 
 export interface PayslipAnalysis {
@@ -86,6 +92,7 @@ export interface PayslipAnalysis {
 export interface PayslipSummary {
   id: string;
   period: string;
+  kind: PayslipKind;
   employer: string | null;
   fileName: string;
   importedAt: string;

@@ -2,6 +2,7 @@ import { Component, computed, input, output } from '@angular/core';
 import { formatMonth } from '../../core/format';
 import { Amount } from '@shared/ui/data/amount/amount';
 import {
+  KIND_LABELS,
   LEAVE_LABELS,
   SECTION_LABELS,
   centsToEuros,
@@ -29,6 +30,7 @@ export class PayslipDetailView {
   protected readonly formatMonth = formatMonth;
   protected readonly formatImportedAt = formatImportedAt;
   protected readonly formatQuantity = formatQuantity;
+  protected readonly kindLabels = KIND_LABELS;
   protected readonly sectionLabels = SECTION_LABELS;
   protected readonly leaveLabels = LEAVE_LABELS;
   protected readonly euros = centsToEuros;

@@ -14,6 +14,8 @@ import { Badge } from '@shared/ui/feedback/badge/badge';
 import {
   CONFIDENCE_LABELS,
   EXTRACTION_STATUS_MESSAGES,
+  KINDS,
+  KIND_LABELS,
   LEAVE_LABELS,
   LEAVE_TYPES,
   SECTIONS,
@@ -28,6 +30,7 @@ import {
   PayslipAnalysis,
   PayslipData,
   PayslipDraft,
+  PayslipKind,
   PayslipSection,
   ReviewResult
 } from './payslip.model';
@@ -87,7 +90,8 @@ type ScalarValues = Record<ScalarKey, string>;
 const REQUIRED = 'Valore obbligatorio.';
 const INVALID = 'Valore non valido.';
 const TOO_MANY_DECIMALS = 'Al massimo due decimali.';
-const PERIOD_TAKEN = 'Esiste già un cedolino per questo mese.';
+const periodTaken = (kind: PayslipKind): string =>
+  `Esiste già un cedolino ${KIND_LABELS[kind].toLowerCase()} per questo mese.`;
 const LEAVE_REPEATED = 'Saldo già presente.';
 const NEGATIVE = 'Il totale non può essere negativo.';
 const OUT_OF_SCALE = 'Valore fuori scala.';
@@ -162,10 +166,10 @@ export class PayslipReview {
   /** L'esito negativo di conferma o salvataggio: sta sopra i pulsanti, dove l'utente guarda. */
   readonly error = input<string | null>(null);
   /**
-   * I mesi che hanno già un cedolino in archivio. Il conflitto segue il mese
-   * scritto nel campo, non solo quello letto dal PDF: l'utente può correggerlo.
+   * I cedolini già in archivio, per mese e tipo. Il conflitto segue mese e tipo
+   * scelti nei campi, non solo quelli letti dal PDF: l'utente può correggerli.
    */
-  readonly takenPeriods = input<readonly string[]>([]);
+  readonly taken = input<readonly { period: string; kind: PayslipKind }[]>([]);
 
   readonly confirmed = output<ReviewResult>();
   readonly cancelled = output<void>();
@@ -175,11 +179,14 @@ export class PayslipReview {
   protected readonly sectionLabels = SECTION_LABELS;
   protected readonly leaveTypes = LEAVE_TYPES;
   protected readonly leaveLabels = LEAVE_LABELS;
+  protected readonly kinds = KINDS;
+  protected readonly kindLabels = KIND_LABELS;
   protected readonly statusMessages = EXTRACTION_STATUS_MESSAGES;
   protected readonly confidenceLabels = CONFIDENCE_LABELS;
   protected readonly formatMonth = formatMonth;
   protected readonly monthPattern = String.raw`\d{4}-(0[1-9]|1[0-2])`;
 
+  protected readonly kind = signal<PayslipKind>('ordinary');
   protected readonly values = signal<ScalarValues>(this.emptyValues());
   protected readonly items = signal<ItemRow[]>([]);
   protected readonly leaves = signal<LeaveRow[]>([]);
@@ -190,23 +197,31 @@ export class PayslipReview {
   private dirty = false;
 
   /**
-   * Se il mese scritto nel campo è già occupato da un altro cedolino. In
-   * modifica il mese di partenza è del cedolino stesso, quindi non conta.
+   * Se mese e tipo scelti sono già occupati da un altro cedolino. In modifica
+   * la coppia di partenza è del cedolino stesso, quindi non conta.
    */
-  private readonly periodTaken = computed(() => {
-    const period = this.values().period;
-    const own = this.analysis() === null ? this.draft().period : null;
+  private readonly slotTaken = computed(() => {
+    const { period } = this.values();
+    const kind = this.kind();
+    const draft = this.draft();
+    const isOwn =
+      this.analysis() === null && period === draft.period && kind === (draft.kind ?? 'ordinary');
+    const conflict = this.analysis()?.conflict;
 
     return (
-      period !== own &&
-      (this.takenPeriods().includes(period) || this.analysis()?.conflict?.period === period)
+      !isOwn &&
+      (this.taken().some((item) => item.period === period && item.kind === kind) ||
+        (conflict?.period === period && conflict.kind === kind))
     );
   });
 
   /** Il mese da sostituire, se la conferma di un'analisi ne sostituirebbe uno. */
   protected readonly conflict = computed<string | null>(() =>
-    this.analysis() !== null && this.periodTaken() ? this.values().period : null
+    this.analysis() !== null && this.slotTaken() ? this.values().period : null
   );
+
+  /** Il tipo in minuscolo, per la frase «Esiste già un cedolino <tipo> per <mese>». */
+  protected readonly conflictKind = computed(() => KIND_LABELS[this.kind()].toLowerCase());
 
   protected readonly scalarErrors = computed<Record<ScalarKey, string | null>>(() => {
     const values = this.values();
@@ -221,8 +236,8 @@ export class PayslipReview {
           ? text.trim() === ''
             ? REQUIRED
             : INVALID
-          : this.analysis() === null && this.periodTaken()
-            ? PERIOD_TAKEN
+          : this.analysis() === null && this.slotTaken()
+            ? periodTaken(this.kind())
             : null;
       } else if (field.kind === 'text') {
         errors[field.key] = checkLength(text, 200);
@@ -298,6 +313,7 @@ export class PayslipReview {
   }
 
   private load(draft: PayslipDraft): void {
+    this.kind.set(draft.kind ?? 'ordinary');
     this.values.set({
       period: draft.period ?? '',
       employer: draft.employer ?? '',
@@ -352,6 +368,13 @@ export class PayslipReview {
       this.replaceExisting.set(false);
     }
     this.values.update((current) => ({ ...current, [key]: value }));
+  }
+
+  protected setKind(event: Event): void {
+    this.dirty = true;
+    // Come per il mese: la sostituzione confermata riguardava un altro cedolino.
+    this.replaceExisting.set(false);
+    this.kind.set(this.inputValue(event) as PayslipKind);
   }
 
   protected setItem(id: number, field: keyof Omit<ItemRow, 'id'>, event: Event): void {
@@ -433,6 +456,7 @@ export class PayslipReview {
 
     return {
       period: v.period,
+      kind: this.kind(),
       employer: v.employer.trim() === '' ? null : v.employer.trim(),
       totalEarningsCents: parseCents(v.totalEarnings)!,
       totalDeductionsCents: parseCents(v.totalDeductions)!,

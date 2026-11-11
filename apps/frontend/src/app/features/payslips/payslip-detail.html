@@ -6,6 +6,10 @@
     <dd>{{ formatMonth(d.period) }}</dd>
   </div>
   <div>
+    <dt>Tipo</dt>
+    <dd>{{ kindLabels[d.kind] }}</dd>
+  </div>
+  <div>
     <dt>Datore di lavoro</dt>
     <dd>{{ d.employer ?? '—' }}</dd>
   </div>

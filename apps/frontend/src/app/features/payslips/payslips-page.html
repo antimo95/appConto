@@ -46,7 +46,7 @@
       <app-payslip-review
         [draft]="retained() ?? analysis()!.draft"
         [analysis]="analysis()"
-        [takenPeriods]="takenPeriods()"
+        [taken]="taken()"
         [busy]="phase() === 'saving'"
         [error]="actionError()"
         (confirmed)="confirmNew($event)"
@@ -91,7 +91,7 @@
                 </thead>
                 <tbody>
                   @for (item of items(); track item.id) {
-                    <tr [class.selected]="item.id === selected()?.id" (click)="select(item.period)">
+                    <tr [class.selected]="item.id === selected()?.id" (click)="select(item.period, item.kind)">
                       <td>
                         <button
                           type="button"
@@ -100,6 +100,9 @@
                         >
                           {{ formatMonth(item.period) }}
                         </button>
+                        @if (item.kind !== 'ordinary') {
+                          <app-badge [label]="kindLabels[item.kind]" tone="neutral" />
+                        }
                       </td>
                       <td class="numeric">
                         <app-amount [value]="euros(item.netCents)" tone="neutral" />
@@ -124,7 +127,7 @@
           @if (summaries.hasValue()) {
             <app-payslip-trend
               [trend]="summaries.value().trend"
-              [selectedPeriod]="selected.period"
+              [selectedPeriod]="selected.kind === 'ordinary' ? selected.period : null"
               (selectPeriod)="select($event)"
             />
           } @else if (summariesError(); as message) {
@@ -136,7 +139,9 @@
 
         <app-panel>
           <app-section-header title="Confronto con il mese precedente" />
-          @if (summaries.hasValue()) {
+          @if (selected.kind !== 'ordinary') {
+            <p class="message">Il confronto riguarda solo i cedolini ordinari.</p>
+          } @else if (summaries.hasValue()) {
             <app-payslip-comparison [comparison]="comparison()" />
           } @else if (summariesError(); as message) {
             <app-error-retry [message]="message" (retry)="summaries.reload()" />
@@ -151,7 +156,7 @@
             @if (editing()) {
               <app-payslip-review
                 [draft]="detail"
-                [takenPeriods]="takenPeriods()"
+                [taken]="taken()"
                 [busy]="phase() === 'saving'"
                 [error]="actionError()"
                 (confirmed)="confirmEdit($event)"

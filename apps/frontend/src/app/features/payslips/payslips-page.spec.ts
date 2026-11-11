@@ -30,6 +30,7 @@ class MockChart {
 const summary = (overrides: Partial<PayslipSummary> = {}): PayslipSummary => ({
   id: 'p-9',
   period: '2026-09',
+  kind: 'ordinary',
   employer: 'Acme Srl',
   fileName: 'settembre.pdf',
   importedAt: '2026-10-01T10:00:00Z',
@@ -355,6 +356,103 @@ describe('PayslipsPage', () => {
     await flushDetail(detail(AUGUST));
   });
 
+  describe('tipo di cedolino', () => {
+    // Lo stesso mese di settembre ha un ordinario e una tredicesima; l'elenco dà l'ordinario per primo.
+    const THIRTEENTH = summary({ id: 'p-13', kind: 'thirteenth', netCents: 150000 });
+    const LIST_WITH_THIRTEENTH = [SEPTEMBER, THIRTEENTH, AUGUST];
+
+    const monthButtons = (): HTMLButtonElement[] => [
+      ...root().querySelectorAll<HTMLButtonElement>('table.payslips .month')
+    ];
+    const rows = (): HTMLElement[] => [...root().querySelectorAll<HTMLElement>('table.payslips tbody tr')];
+
+    it('elenca due righe per lo stesso mese e mette il badge solo sulla tredicesima', async () => {
+      await harness.navigateByUrl('/payslips', PayslipsPage);
+      await loadPage(LIST_WITH_THIRTEENTH);
+      await flushDetail(detail());
+
+      expect(rows()).toHaveLength(3);
+      expect(rows()[0].querySelector('app-badge')).toBeNull();
+      expect(rows()[1].querySelector('app-badge')?.textContent).toContain('Tredicesima');
+      expect(rows()[2].querySelector('app-badge')).toBeNull();
+      expect(rows()[1].textContent).toContain('settembre 2026');
+    });
+
+    it("?kind= sceglie la tredicesima; senza kind si sceglie l'ordinario", async () => {
+      await harness.navigateByUrl('/payslips?period=2026-09&kind=thirteenth', PayslipsPage);
+      await loadPage(LIST_WITH_THIRTEENTH);
+      await flushDetail(detail(THIRTEENTH));
+
+      expect(rows()[1].classList.contains('selected')).toBe(true);
+      expect(rows()[0].classList.contains('selected')).toBe(false);
+      expect(root().querySelector('app-payslip-detail dl.meta')?.textContent).toContain('Tredicesima');
+    });
+
+    it("senza kind nell'URL seleziona l'ordinario dello stesso mese", async () => {
+      await harness.navigateByUrl('/payslips?period=2026-09', PayslipsPage);
+      await loadPage([THIRTEENTH, SEPTEMBER, AUGUST]);
+      await flushDetail(detail());
+
+      expect(rows()[1].classList.contains('selected')).toBe(true);
+      expect(rows()[0].classList.contains('selected')).toBe(false);
+    });
+
+    it('sulla tredicesima il confronto dice che riguarda solo gli ordinari, senza mese nel grafico né variazione', async () => {
+      await harness.navigateByUrl('/payslips?period=2026-09&kind=thirteenth', PayslipsPage);
+      await loadPage(LIST_WITH_THIRTEENTH);
+      await flushDetail(detail(THIRTEENTH));
+
+      expect(text()).toContain('Il confronto riguarda solo i cedolini ordinari.');
+      expect(root().querySelector('app-payslip-comparison')).toBeNull();
+      const trend = harness.fixture.debugElement.query(By.directive(PayslipTrend))
+        .componentInstance as PayslipTrend;
+      expect(trend.selectedPeriod()).toBeNull();
+      expect(root().querySelector('app-stat-card-grid .delta')).toBeNull();
+    });
+
+    it("sull'ordinario il confronto resta quello di sempre", async () => {
+      await harness.navigateByUrl('/payslips', PayslipsPage);
+      await loadPage(LIST_WITH_THIRTEENTH);
+      await flushDetail(detail());
+
+      expect(text()).not.toContain('Il confronto riguarda solo i cedolini ordinari.');
+      expect(root().querySelector('app-payslip-comparison')).not.toBeNull();
+    });
+
+    it("cliccare la riga della tredicesima mette kind nell'URL, quella dell'ordinario lo toglie", async () => {
+      await harness.navigateByUrl('/payslips', PayslipsPage);
+      await loadPage(LIST_WITH_THIRTEENTH);
+      await flushDetail(detail());
+
+      monthButtons()[1].click();
+      await settle();
+      expect(router.url).toContain('period=2026-09');
+      expect(router.url).toContain('kind=thirteenth');
+      await flushDetail(detail(THIRTEENTH));
+
+      monthButtons()[0].click();
+      await settle();
+      expect(router.url).toContain('period=2026-09');
+      expect(router.url).not.toContain('kind');
+      await flushDetail(detail());
+    });
+
+    it("le righe del riepilogo ferie e del grafico scelgono sempre l'ordinario", async () => {
+      await harness.navigateByUrl('/payslips?period=2026-09&kind=thirteenth', PayslipsPage);
+      await loadPage(LIST_WITH_THIRTEENTH);
+      await flushDetail(detail(THIRTEENTH));
+
+      const trend = harness.fixture.debugElement.query(By.directive(PayslipTrend))
+        .componentInstance as PayslipTrend;
+      trend.selectPeriod.emit('2026-09');
+      await settle();
+
+      expect(router.url).toContain('period=2026-09');
+      expect(router.url).not.toContain('kind');
+      await flushDetail(detail());
+    });
+  });
+
   it('nel confronto mostra voci variate, nuove e scomparse ma non le identiche', async () => {
     await harness.navigateByUrl('/payslips', PayslipsPage);
     await loadPage();
@@ -450,6 +548,7 @@ describe('PayslipsPage', () => {
       analysisId: 'a-1',
       replaceExisting: false,
       period: '2026-10',
+      kind: 'ordinary',
       employer: 'Acme Srl',
       totalEarningsCents: 260000,
       totalDeductionsCents: 52000,
@@ -959,9 +1058,9 @@ describe('PayslipsPage', () => {
   });
 
   it('con un conflitto di mese la conferma richiede di sostituire e invia replaceExisting', async () => {
-    await analyzeWith({ ...analysis(), conflict: { payslipId: 'p-10', period: '2026-10' } });
+    await analyzeWith({ ...analysis(), conflict: { payslipId: 'p-10', period: '2026-10', kind: 'ordinary' } });
 
-    expect(text()).toContain('Esiste già un cedolino per ottobre 2026.');
+    expect(text()).toContain('Esiste già un cedolino ordinario per ottobre 2026.');
     expect(text()).toContain('Sostituisci il cedolino esistente');
     const confirm = root().querySelector<HTMLButtonElement>('.confirm')!;
     expect(confirm.disabled).toBe(true);
@@ -995,7 +1094,7 @@ describe('PayslipsPage', () => {
 
     await type('#payslip-period', '2026-08');
 
-    expect(text()).toContain('Esiste già un cedolino per agosto 2026.');
+    expect(text()).toContain('Esiste già un cedolino ordinario per agosto 2026.');
     const confirm = root().querySelector<HTMLButtonElement>('.confirm')!;
     expect(confirm.disabled).toBe(true);
     root().querySelector<HTMLInputElement>('.conflict input')!.click();

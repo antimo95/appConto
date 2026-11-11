@@ -180,7 +180,7 @@ test.describe('Cedolini', () => {
     await expect(payslipRows(page)).toHaveCount(1);
 
     const review = await uploadForReview(page, pdfOttobreRistampa());
-    await expect(review.getByText('Esiste già un cedolino per ottobre 2026.')).toBeVisible();
+    await expect(review.getByText('Esiste già un cedolino ordinario per ottobre 2026.')).toBeVisible();
     const conferma = review.getByRole('button', { name: 'Conferma e salva' });
     const sostituisci = review.getByRole('checkbox', { name: 'Sostituisci il cedolino esistente' });
     await expect(sostituisci).not.toBeChecked();

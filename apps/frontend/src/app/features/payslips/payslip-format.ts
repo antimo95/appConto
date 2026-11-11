@@ -5,6 +5,7 @@ import {
   ExtractionStatus,
   ItemChangeStatus,
   LeaveType,
+  PayslipKind,
   PayslipSection
 } from './payslip.model';
 
@@ -33,6 +34,15 @@ export const SECTION_LABELS: Record<PayslipSection, string> = {
   deduction: 'Trattenuta',
   employer_contribution: 'Contributo azienda',
   informational: 'Informativa'
+};
+
+export const KINDS: readonly PayslipKind[] = ['ordinary', 'thirteenth', 'fourteenth', 'adjustment'];
+
+export const KIND_LABELS: Record<PayslipKind, string> = {
+  ordinary: 'Ordinario',
+  thirteenth: 'Tredicesima',
+  fourteenth: 'Quattordicesima',
+  adjustment: 'Conguaglio'
 };
 
 export const LEAVE_TYPES: readonly LeaveType[] = ['FERIE', 'PAR'];

@@ -21,7 +21,7 @@
 
 @if (conflict(); as period) {
   <div class="conflict">
-    <p>Esiste già un cedolino per {{ formatMonth(period) }}.</p>
+    <p>Esiste già un cedolino {{ conflictKind() }} per {{ formatMonth(period) }}.</p>
     <label class="check">
       <input
         type="checkbox"
@@ -35,6 +35,14 @@
 }
 
 <div class="fields">
+  <div class="field">
+    <label for="payslip-kind">Tipo di cedolino</label>
+    <select id="payslip-kind" (change)="setKind($event)">
+      @for (option of kinds; track option) {
+        <option [value]="option" [selected]="option === kind()">{{ kindLabels[option] }}</option>
+      }
+    </select>
+  </div>
   @for (field of scalarFields; track field.key) {
     <div class="field">
       <label [for]="'payslip-' + field.key">{{ field.label }}</label>

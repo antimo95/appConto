@@ -5,6 +5,7 @@ import { PayslipDetail } from './payslip.model';
 const detail = (overrides: Partial<PayslipDetail> = {}): PayslipDetail => ({
   id: 'p-9',
   period: '2026-09',
+  kind: 'ordinary',
   employer: 'Acme Srl',
   fileName: 'settembre.pdf',
   importedAt: '2026-10-01T10:00:00Z',
@@ -48,10 +49,16 @@ describe('PayslipDetailView', () => {
 
   beforeEach(() => TestBed.configureTestingModule({ imports: [PayslipDetailView] }));
 
+  it('mostra il tipo di un cedolino non ordinario', async () => {
+    expect(metaValue(await render(detail({ kind: 'thirteenth' })), 'Tipo')).toBe('Tredicesima');
+    expect(metaValue(await render(detail({ kind: 'adjustment' })), 'Tipo')).toBe('Conguaglio');
+  });
+
   it('mostra i metadati del cedolino', async () => {
     const host = await render(detail());
 
     expect(metaValue(host, 'Mese')).toBe('settembre 2026');
+    expect(metaValue(host, 'Tipo')).toBe('Ordinario');
     expect(metaValue(host, 'Datore di lavoro')).toBe('Acme Srl');
     expect(metaValue(host, 'File')).toBe('settembre.pdf');
     expect(metaValue(host, 'Lettore')).toBe('zucchetti');
