@@ -164,7 +164,7 @@ Legenda: NOT STARTED · IN PROGRESS · COMPLETED · PARTIALLY COMPLETED · BLOCK
 | C-03 | NOT STARTED | `transactions.service.ts:215-224` blocca solo `requiresIncome` | Riformulata: decisione LO1 definitiva |
 | C-04 | PARTIALLY COMPLETED | Il comportamento è già quello deciso e il commento BE lo dichiara (`transactions.service.ts:244-250`). Mancano il testo UI e il test | Testo di conferma + test di caratterizzazione |
 | C-05 | NOT STARTED | Il frontend ha solo `maintenance.api.ts` con `reset()`. Il backend ha tutte le API | Intera attività; include l'annullamento del restore pendente |
-| C-06 | NOT STARTED | `reset.service.ts:161`: `vacuum()` senza try/catch dopo il commit | Intera attività |
+| C-06 | COMPLETED (2026-11-11) | `try/catch` attorno alla ricompattazione in `reset.service.ts`, errore loggato; test con ricompattazione che fallisce | Il testo UI sulle categorie conservate resta in C-05 |
 | D-01 | NOT STARTED | `categories-page.ts:19` duplica `FALLBACK_CATEGORY_ID` | Intera attività |
 | D-02 | NOT STARTED | `loan-create-page.ts:87-93,112,159` calcola in euro float; il backend non espone la capienza | Riformulata: il backend espone la capienza residua |
 | D-03 | NOT STARTED | — | Opzionale |
@@ -179,7 +179,7 @@ Legenda: NOT STARTED · IN PROGRESS · COMPLETED · PARTIALLY COMPLETED · BLOCK
 | F-05 | DEFERRED (fuori perimetro) | — | §10 |
 | G-01, G-02 | NOT STARTED | — | Rinviabili (§9) |
 
-Al 2026-11-11 sono COMPLETED A-04, A-05a, A-02 e A-03 (evidenze nelle schede e in `PROGRESS.md`). Nessuna attività è IN PROGRESS. Le modifiche non sono ancora committate: HEAD resta `f072a59`.
+Al 2026-11-11 sono COMPLETED A-04, A-05a, A-02, A-03 e C-06: la fase 1 è chiusa, salvo A-05b (BLOCKED) (evidenze nelle schede e in `PROGRESS.md`). Nessuna attività è IN PROGRESS. Le modifiche non sono ancora committate: HEAD resta `f072a59`.
 
 ---
 
@@ -488,6 +488,10 @@ Scala di effort: **XS** ≤ mezza giornata · **S** ½–1 giorno · **M** 2–3
 - **Criteri di accettazione:** il test fallisce prima e passa dopo; suite `maintenance/` verde.
 - **Impatto UX/DX/AX:** UX positivo. DX e AX neutri.
 - **Risultato atteso:** esito del reset sempre veritiero.
+- **Stato: COMPLETED (2026-11-11).**
+  - **Intervento realizzato:** `run(moment, compact = vacuum)`: la ricompattazione è un parametro con default, come già `moment`, perché un `VACUUM` che fallisce non si provoca a comando. La chiamata è in `try/catch`; l'errore si registra con `logger.error` (il logger non ha un livello warning e non è stato aggiunto), con il nome del backup. Nessun nuovo campo di risposta. Unico chiamante (`maintenance.routes.ts:129`) invariato.
+  - **Test:** describe "quando la ricompattazione fallisce" in `reset.service.test.ts`: archivio pieno, ricompattazione che solleva `database or disk is full`; l'esito ha righe eliminate e un backup `pre-reset` verificabile, e l'archivio è vuoto.
+  - **Criteri verificati:** con il parametro introdotto ma senza `try/catch` il test fallisce con `Error: database or disk is full`; dopo la correzione passa. Suite `maintenance/` 166/166. `npm run check` uscita 0 (backend 1071/1071, frontend 840/840, build).
 
 ### Fase 2 — Regole di dominio
 

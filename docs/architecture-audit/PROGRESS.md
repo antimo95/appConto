@@ -181,3 +181,40 @@ Lo stato corrente e il prossimo passo sono in `HANDOFF.md`; lo stato di ogni att
 - Nessuna attività parziale.
 - Prossima attività: C-06.
 - G-03 (verify-package con attese obsolete) va corretta prima del prossimo rilascio.
+
+---
+
+## Sessione 2026-11-11 (quarta parte) — C-06
+
+- **Branch:** `consolidamento/fase-1`. **Commit iniziale:** `f52071c` (A-03). **Commit finale:** quello che contiene C-06.
+
+| ID | Esito |
+|---|---|
+| C-06 | COMPLETED |
+
+### File modificati
+
+- `apps/backend/src/modules/maintenance/reset.service.ts`: parametro `compact` (default `vacuum`) e `try/catch` con `logger.error`.
+- `apps/backend/src/modules/maintenance/reset.service.test.ts`: nuovo describe "quando la ricompattazione fallisce".
+- `docs/architecture-audit/PLAN.md`, `STATE_MACHINES.md` (SM7), `PROGRESS.md`, `HANDOFF.md`.
+
+### Sequenza e verifiche
+
+1. Test scritto prima. Primo tentativo dentro "quando NON si azzera": falliva per l'ordine dei test (`riempi()` su un archivio ancora pieno dal test precedente). Spostato in un describe proprio, dopo l'azzeramento.
+2. Con il codice originale il test passava per il motivo sbagliato: il parametro veniva ignorato e il VACUUM vero riusciva. Introdotto il parametro senza `try/catch`: il test fallisce con `Error: database or disk is full` (F13 riprodotto).
+3. Aggiunto il `try/catch`: test verde. Suite `maintenance/` 166/166.
+4. `npm run check`: uscita 0 in 109 s; backend 1071/1071, frontend 840/840, build riuscita.
+
+### Review
+
+- Diff piccolo (2 file, circa 30 righe), riletto senza subagent. L'unico chiamante di `resetService.run` non cambia.
+- Livello di log `error` invece del "warning" della scheda: il logger ha solo `info` ed `error`, e aggiungere un livello per questo caso non è giustificato.
+
+### Verifiche non eseguite
+
+- Nessun VACUUM fallito per davvero (disco pieno): simulato tramite il parametro.
+
+### In sospeso
+
+- Nessuna attività parziale. Fase 1 chiusa, salvo A-05b (BLOCKED da A-01).
+- Prossima attività: C-03.

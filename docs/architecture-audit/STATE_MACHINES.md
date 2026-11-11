@@ -385,6 +385,8 @@ stateDiagram-v2
 
 **Raccomandazione.** Catturare e loggare l'errore del `VACUUM` restituendo comunque il successo. Chiarire nel testo del pannello che le categorie vengono conservate.
 
+**Aggiornamento 2026-11-11 — C-06 implementata.** Il passo 5 è in `try/catch`: se la ricompattazione fallisce, l'errore viene registrato nel log e il reset restituisce comunque l'esito con `backupName` e le righe eliminate. Il testo del pannello sulle categorie resta da fare (C-05).
+
 ---
 
 ### SM8. Saldo iniziale
