@@ -73,3 +73,54 @@ Lo stato corrente e il prossimo passo sono in `HANDOFF.md`; lo stato di ogni att
 - Nessuna attività parziale.
 - Prossima attività: A-02 (vedi `HANDOFF.md`).
 - Osservazione, non affrontata: `apps/frontend/tsconfig.app.json` dichiara `"outDir": "./src/app"`. Senza effetti su `ng build` oggi. Non aggiunta al piano.
+
+---
+
+## Sessione 2026-11-11 (seconda parte) — commit e A-02
+
+- **Branch:** `consolidamento/fase-1`, creato da `master` su richiesta di commit.
+- **Commit della prima parte:** `2a5e7f8` (documenti di audit e piano), `4e7fcf5` (A-04, A-05a).
+- **Commit iniziale di questa parte:** `4e7fcf5`. **Commit finale:** quello che contiene A-02 (vedi `git log`).
+
+### Attività affrontate
+
+| ID | Esito |
+|---|---|
+| A-02 | COMPLETED |
+
+### File modificati
+
+- `apps/backend/src/modules/maintenance/backup.service.ts`: parametro `protect` in `create()` e `prune()`.
+- `apps/backend/src/modules/maintenance/restore.service.ts`: `create('pre-restore', moment, [name])`; `clearPendingRestore()` subito prima di `rmSync(candidate)`.
+- `apps/backend/src/modules/maintenance/restore.service.test.ts`: T1, T2, T3.
+- `apps/backend/src/modules/maintenance/backup.service.test.ts`: T4.
+- `docs/architecture-audit/PLAN.md`, `STATE_MACHINES.md` (SM1: transizione e nota di aggiornamento), `PROGRESS.md`, `HANDOFF.md`.
+
+### Verifiche
+
+- **Prima della correzione** (solo i due file di test): T1 fallisce con `ENOENT ... copyfile '...pre-restore-20270101-100100.sqlite'` (R1 riprodotto); T3 fallisce (marker vecchio ancora presente); T4 fallisce; T2 verde, come previsto.
+- **Dopo la correzione:** suite `modules/maintenance/*.test.ts` più `restore.runtime.test.ts` 168/168.
+- **`npm run check`:** il primo giro è fallito al typecheck (TS2322/TS2345 nei nuovi test: destrutturazione di array con `noUncheckedIndexedAccess`). Corretto, secondo giro uscita 0 in 94 s: backend 1063/1063, frontend 840/840, build riuscita.
+
+### Review
+
+- Subagent revisore indipendente (Sonnet, sola lettura): nessun problema bloccante. I-R1 e I-R2 reggono su ogni ramo di errore di `stage()`, compreso il fallimento di `copyFileSync` (candidato parziale senza marker, ignorato al boot e rimosso dallo stage successivo).
+- Osservazioni accettate, senza modifiche al codice:
+  - la protezione vale solo per la creazione del pre-restore; un backup successivo di qualsiasi tipo può eliminare il backup scelto mentre il ripristino è in attesa. L'apply usa il candidato in `tmp/`; `backupName` resta solo un'etichetta nei log. Documentato in PLAN (scheda A-02) e STATE_MACHINES, da considerare in C-05;
+  - T2 passa anche senza la correzione: protegge dallo spostare `clearPendingRestore()` troppo presto, come previsto dal piano;
+  - T1 presume che nel file nessun altro pre-restore abbia una data successiva al 2027-01-01 (scritto nel commento del test);
+  - T3 si basa su `rmSync` di una cartella che fallisce con `EISDIR`.
+
+### Decisioni tecniche
+
+- `protect` come parametro posizionale (array) invece dell'oggetto `{ protect }` della scheda: un solo chiamante, meno codice.
+
+### Verifiche non eseguite
+
+- Nessuna prova manuale di restore sull'app avviata: prevista dal piano solo con C-05.
+
+### In sospeso
+
+- Nessuna attività parziale.
+- Prossima attività: A-03, in una sessione separata.
+- I riferimenti di riga della scheda A-03 sono slittati: `live` è a `instance-lock.ts:136,150`, il furto del lock con `rmSync` a `:241` (e `:198`).

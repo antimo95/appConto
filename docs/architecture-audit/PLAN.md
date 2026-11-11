@@ -152,7 +152,7 @@ Legenda: NOT STARTED · IN PROGRESS · COMPLETED · PARTIALLY COMPLETED · BLOCK
 | ID orig. | Stato | Evidenza | Lavoro residuo / nuova collocazione |
 |---|---|---|---|
 | A-01 | DEFERRED (fuori perimetro) | Cartella `apps/backend/data-backup-p2-20260901/` ancora tracciata | §10 |
-| A-02 | NOT STARTED | `restore.service.ts:88-105`: `create('pre-restore')`, con `prune()`, prima della copia del candidato; marker non azzerato prima di sostituire il candidato | Intera attività, ridisegnata (protezione della sorgente nella retention) |
+| A-02 | COMPLETED (2026-11-11) | `prune(protect)` e `create(..., protect)` in `backup.service.ts`; `clearPendingRestore()` prima della sostituzione del candidato in `restore.service.ts`; test T1–T4 | — |
 | A-03 | NOT STARTED | `instance-lock.ts:238-243`: `rmSync` senza alcuna verifica del token | Intera attività, ridisegnata (rivendicazione del furto per token) |
 | A-04 | COMPLETED (2026-11-11) | `npm run test:frontend` esce con 0; 840/840; nessun "Unhandled Errors". Rotte reali con pagine vuote in `app.spec.ts` (vedi scheda) | — |
 | A-05 | Divisa | — | **A-05a** COMPLETED (2026-11-11): script `check` nel `package.json` radice, esito 0 a progetto sano e ≠ 0 per ciascun passo rotto. **A-05b** BLOCKED da A-01 |
@@ -179,7 +179,7 @@ Legenda: NOT STARTED · IN PROGRESS · COMPLETED · PARTIALLY COMPLETED · BLOCK
 | F-05 | DEFERRED (fuori perimetro) | — | §10 |
 | G-01, G-02 | NOT STARTED | — | Rinviabili (§9) |
 
-Al 2026-11-11 sono COMPLETED A-04 e A-05a (evidenze nelle schede e in `PROGRESS.md`). Nessuna attività è IN PROGRESS. Le modifiche non sono ancora committate: HEAD resta `f072a59`.
+Al 2026-11-11 sono COMPLETED A-04, A-05a e A-02 (evidenze nelle schede e in `PROGRESS.md`). Nessuna attività è IN PROGRESS. Le modifiche non sono ancora committate: HEAD resta `f072a59`.
 
 ---
 
@@ -383,6 +383,14 @@ Scala di effort: **XS** ≤ mezza giornata · **S** ½–1 giorno · **M** 2–3
   - DX neutro.
   - AX positivo: invarianti espliciti nei test.
 - **Risultato atteso:** il restore è sicuro da esporre in interfaccia (C-05).
+- **Stato: COMPLETED (2026-11-11).**
+  - **Intervento realizzato:** come proposto, con una semplificazione: `protect` è un terzo parametro posizionale (`create(kind, moment, protect = [])`, `prune(protect = [])`) invece di un oggetto di opzioni. Unico chiamante che lo passa: `restore.service.ts`. Gli altri chiamanti di `create` (`bootstrap.ts`, `auto-backup.ts`, `maintenance.routes.ts`, `reset.service.ts`) restano invariati.
+  - **Test:** T1 e T4 nei nuovi describe di `restore.service.test.ts` e `backup.service.test.ts`; T2 e T3 in `restore.service.test.ts`. T3 provoca il fallimento mettendo una cartella al posto del candidato: `rmSync` fallisce subito dopo `clearPendingRestore()`.
+  - **Criteri verificati:**
+    - prima della correzione: T1 fallisce con `ENOENT` su `copyfile` del backup scelto; T3 e T4 falliscono; T2 è verde;
+    - dopo la correzione: T1–T4 verdi; suite `maintenance/` più `restore.runtime.test.ts` 168/168;
+    - `npm run check` esce con 0 (backend 1063/1063, frontend 840/840, build).
+  - **Limite accettato:** la protezione vale per la sola creazione del pre-restore. La creazione successiva di un backup di qualsiasi tipo (anche automatico) esegue `prune()` senza protezione e può eliminare il backup scelto mentre il ripristino è ancora in attesa. L'apply non ne risente: usa il candidato in `tmp/`. Da tenere presente in C-05, se l'interfaccia mostra il nome del backup in attesa.
 
 #### A-03 · Lock d'istanza: un solo processo può acquisire l'archivio (L1)
 

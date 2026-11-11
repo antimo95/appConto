@@ -1,5 +1,13 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, rmSync, truncateSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  truncateSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, beforeEach, describe, it } from 'node:test';
@@ -284,5 +292,68 @@ describe("preparazione rifiutata: l'archivio attivo resta intatto", () => {
     riallineaImpronta(nome);
 
     rifiuta(() => restoreService.stage(nome), /versione più recente/);
+  });
+});
+
+/*
+ * A-02. Preparare un ripristino non deve distruggere né il backup scelto (R1)
+ * né lasciare un marcatore che punta a un candidato che non c'è più (R2).
+ */
+describe('il backup scelto e il ripristino già preparato sono protetti', () => {
+  beforeEach(() => {
+    rmSync(marker, { force: true });
+    rmSync(candidate, { recursive: true, force: true });
+  });
+
+  it('ripristinare il più vecchio dei pre-restore non lo elimina con la ritenzione', () => {
+    // Tre pre-restore, più recenti di ogni altro in questo file: sono quelli
+    // che la ritenzione (3) conserva. Il nuovo pre-restore creato dallo stage
+    // farebbe uscire dalla finestra proprio il più vecchio, cioè quello scelto.
+    const scelto = backupService.create('pre-restore', new Date(2027, 0, 1, 10, 1, 0)).name;
+    for (const minuto of [2, 3]) {
+      backupService.create('pre-restore', new Date(2027, 0, 1, 10, minuto, 0));
+    }
+    const impronta = sha256OfFile(path.join(config.backupsDir, scelto));
+
+    const staged = restoreService.stage(scelto, new Date(2027, 0, 1, 11, 0, 0));
+
+    assert.equal(staged.backupName, scelto);
+    assert.equal(sha256OfFile(candidate), impronta);
+    assert.ok(
+      backupService.list().some((info) => info.name === scelto),
+      'il backup scelto deve restare elencato',
+    );
+    assert.ok(backupService.verify(scelto).ok);
+  });
+
+  it('una richiesta rifiutata lascia intatto il ripristino già preparato', () => {
+    const nome = backupValido();
+    restoreService.stage(nome, new Date(2026, 8, 1, 17, 0, 0));
+    const impronta = sha256OfFile(candidate);
+
+    assert.throws(() => restoreService.stage('manual-19990101-000000.sqlite'), ValidationError);
+
+    assert.equal(restoreService.pending()?.backupName, nome);
+    assert.equal(sha256OfFile(candidate), impronta);
+  });
+
+  it('un fallimento dopo aver toccato il candidato non lascia un ripristino in attesa', () => {
+    const nome = backupValido();
+    restoreService.stage(nome, new Date(2026, 8, 1, 17, 1, 0));
+
+    // Al posto del candidato una cartella: la sua rimozione, primo passo della
+    // sostituzione, fallisce. È il punto oltre il quale il vecchio candidato
+    // non è più garantito.
+    rmSync(candidate, { force: true });
+    mkdirSync(candidate);
+
+    try {
+      assert.throws(() => restoreService.stage(backupValido(), new Date(2026, 8, 1, 17, 2, 0)));
+
+      assert.equal(restoreService.pending(), null);
+      assert.ok(!existsSync(marker), 'nessun marcatore senza il suo candidato');
+    } finally {
+      rmSync(candidate, { recursive: true, force: true });
+    }
   });
 });

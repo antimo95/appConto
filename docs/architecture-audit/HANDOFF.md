@@ -5,19 +5,16 @@ Punto di ingresso per la prossima sessione. Fotografia dello stato operativo: le
 ## Stato generale
 
 - **Ultimo aggiornamento:** 2026-11-11.
-- **Branch:** `master`.
-- **HEAD:** `f072a59` (baseline dell'audit). Nessun commit dopo l'audit.
-- **Working tree:** non committato.
-  - `M apps/frontend/src/app/app.spec.ts` (A-04);
-  - `M package.json` (A-05a);
-  - `?? docs/architecture-audit/` (AUDIT, STATE_MACHINES, PLAN, PROGRESS, HANDOFF).
-- **Roadmap:** fase 1 in corso. COMPLETED: A-04, A-05a. BLOCKED: A-05b (da A-01). DEFERRED fuori perimetro: A-01, E-02, F-05. Tutto il resto NOT STARTED, tranne C-04 PARTIALLY COMPLETED (stato di partenza). Dettaglio in `PLAN.md` §3.
+- **Branch:** `consolidamento/fase-1` (da `master` a `f072a59`). Non pushato.
+- **HEAD:** ultimo commit del branch, A-02 (vedi `git log --oneline -4`). Commit precedenti: `4e7fcf5` (A-04, A-05a), `2a5e7f8` (documenti di audit e piano).
+- **Working tree:** pulito dopo il commit di A-02.
+- **Roadmap:** fase 1. COMPLETED: A-04, A-05a, A-02. Prossima: A-03. BLOCKED: A-05b (da A-01). DEFERRED fuori perimetro: A-01, E-02, F-05. C-04 PARTIALLY COMPLETED (stato di partenza). Tutto il resto NOT STARTED. Dettaglio in `PLAN.md` §3.
 
 ## Ultimo lavoro completato
 
-- **A-04:** `npm run test:frontend` esce con 0 (840/840, nessun errore non gestito). `app.spec.ts` usa le rotte reali con pagine vuote.
-- **A-05a:** `npm run check` = typecheck backend, test backend, test frontend, build. Uscita 0 a progetto sano; uscita 1 provata per ciascuno dei quattro passi.
-- Evidenze complete: schede A-04 e A-05a in `PLAN.md`, sessione 2026-11-11 in `PROGRESS.md`.
+- **A-02:** lo stage di un ripristino non elimina più il backup scelto (`prune(protect)`) e non lascia un marcatore senza candidato (`clearPendingRestore()` subito prima di sostituire il candidato). Test T1–T4; T1, T3 e T4 fallivano prima della correzione.
+- **Limite accettato:** un backup creato dopo lo stage, anche automatico, può eliminare il backup scelto mentre il ripristino è in attesa. L'apply usa la copia in `tmp/`. Da considerare in C-05.
+- Evidenze: scheda A-02 in `PLAN.md`, SM1 in `STATE_MACHINES.md`, `PROGRESS.md`.
 
 ## Lavoro in corso
 
@@ -25,25 +22,20 @@ Nessuna attività parziale.
 
 ## Prossima attività
 
-- **ID:** A-02 — Restore che non cancella la propria sorgente e non lascia marker orfani (R1, R2).
-- **Perché ora:** P1, fase 1, nessun prerequisito. È la prima attività non completata e non bloccata. A-03 viene dopo, in una sessione separata: non affrontarle insieme.
-- **Prerequisiti:** nessuno. `npm run check` è disponibile per la verifica finale.
-- **File da esaminare** (`apps/backend/src/modules/maintenance/`):
-  - `restore.service.ts`: `stage()` a `:62`, `create('pre-restore')` a `:90`, sostituzione del candidato a `:104-105`, scrittura del marker a `:131`;
-  - `backup.service.ts`: `create()` (chiama `prune()` a `:218`), `prune()` a `:377`;
-  - `backup.retention.ts`, `restore-pending.ts`;
-  - test: `restore.service.test.ts`, `backup.service.test.ts`, `backup.retention.test.ts`, `restore-pending.test.ts`, più `apps/backend/src/restore.runtime.test.ts`.
-- **Progetto deciso** (scheda A-02 in `PLAN.md`, non ridiscuterlo):
-  - opzione `create(kind, moment, { protect?: string[] })` inoltrata a `prune()`; `stage()` protegge il backup sorgente;
-  - `clearPendingRestore()` subito prima di `rmSync(candidate)`, dopo verifica, controllo dello schema e backup pre-restore;
-  - niente tmp+rename del marker, niente riordino dei passi.
-- **Primo passo consigliato:** scrivere il test T1 (tre backup `pre-restore` esistenti, `stage` del più vecchio, il backup deve restare elencato) e vederlo fallire. Poi T2–T4 come da scheda.
+- **ID:** A-03 — Lock d'istanza: un solo processo può acquisire l'archivio (L1).
+- **Perché ora:** ultima P1 della fase 1 non bloccata. Il furto di un lock considerato morto è un `rmSync` senza verifica: due avvii concorrenti possono acquisire entrambi l'archivio.
+- **Prerequisiti:** nessuno. Area `launcher/` in esclusiva (poi E-07).
+- **File da esaminare:**
+  - `apps/backend/src/launcher/instance-lock.ts`: hook iniettabile `live` (`:136`, usato a `:150`), furto del lock con `rmSync` a `:241` (e `:198`). I riferimenti di riga della scheda sono slittati;
+  - `apps/backend/src/launcher/instance-lock.test.ts`;
+  - `docs/rilascio.md` (documentare il caso residuo).
+- **Progetto deciso** (scheda A-03 in `PLAN.md`, non ridiscuterlo): rivendicazione del furto con `wx` su `<lockFile>.steal-<token>`; il vincitore rilegge il lock, se coincide lo rimuove, crea il proprio con `wx` e rimuove la rivendicazione; altrimenti rilascia e ritenta. Crash fra rivendicazione e sostituzione: errore esplicito che nomina i due file, con commento `shortcut:`. Nessuna libreria, nessun mutex a scadenza.
+- **Primo passo consigliato:** test T1 con interleaving deterministico tramite l'hook `live`, due acquisizioni concorrenti su un lock morto: oggi entrambe acquisiscono. Vederlo fallire, poi T2–T5 come da scheda.
 
 ## Verifiche
 
-- **Ultimo `npm run check`:** 2026-11-11, uscita 0, 121 s (backend 1059/1059, frontend 840/840, build ok).
-- **Ultimi test separati:** `npm run test:frontend` uscita 0, 840/840.
-- **Non eseguito:** nessuna prova manuale dell'app avviata (non necessaria finora). Comando eseguito da Git Bash, non provato direttamente in `cmd`/PowerShell.
+- **Ultimo `npm run check`:** 2026-11-11, dopo A-02: uscita 0, 94 s (backend 1063/1063, frontend 840/840, build ok).
+- **Non eseguito:** nessuna prova manuale dell'app avviata. Comando eseguito da Git Bash, non direttamente in `cmd`/PowerShell.
 - **Ambiente:** Windows 11, Node v24.11.1. Le righe "Not implemented: HTMLCanvasElement's getContext()" nei test frontend sono avvisi di jsdom, non errori.
 
 ## Invarianti e attenzioni
@@ -62,5 +54,5 @@ Nessuna attività parziale.
 1. Leggere questo file, poi la scheda della prossima attività in `PLAN.md` §6 e l'ultima sezione di `PROGRESS.md`.
 2. Verificare `git branch --show-current`, `git rev-parse --short HEAD`, `git status --porcelain` e confrontarli con "Stato generale". Se divergono, aggiornare questo file prima di continuare.
 3. Eseguire `npm run check` per confermare che la base è verde (circa 2 minuti).
-4. Riprendere da A-02 con test che fallisce prima della correzione (`PLAN.md` §8.2).
-5. A fine attività: `npm run check`; aggiornare `PLAN.md` §3 e la scheda, aggiungere una sezione a `PROGRESS.md`, riscrivere questo file. Aggiornare `STATE_MACHINES.md` solo se cambia il comportamento implementato del restore.
+4. Riprendere da A-03 con un test che fallisce prima della correzione (`PLAN.md` §8.2).
+5. A fine attività: `npm run check`; aggiornare `PLAN.md` §3 e la scheda, aggiungere una sezione a `PROGRESS.md`, riscrivere questo file. Aggiornare `STATE_MACHINES.md` se cambia il comportamento implementato (per A-03: la macchina del lock d'istanza).

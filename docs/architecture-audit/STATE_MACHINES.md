@@ -98,6 +98,7 @@ stateDiagram-v2
   None --> Staged: POST /restore [backup valido, schema<=app, backup pre-restore ok, copia verificata]
   Staged --> Staged: POST /restore di nuovo (nuovo candidato + nuovo pre-restore)
   Staged --> None: DELETE /restore (candidato rimosso, pre-restore conservato)
+  Staged --> None: POST /restore fallito dopo l'inizio della sostituzione del candidato (A-02)
   Staged --> Quarantined: boot [marker invalido / candidato assente / sha o schema non coerenti]
   Staged --> Applying: boot [candidato verificato] marker state=applying
   Applying --> Applied: rename db->tmp/replaced, rimozione -wal/-shm, rename candidato->db (COMMIT)
@@ -131,6 +132,13 @@ stateDiagram-v2
 - R1: copiare il candidato in `tmp/` (passi 4–5) **prima** di creare il backup pre-restore. In alternativa, escludere dalla potatura il nome in corso di ripristino.
 - R2: rimuovere il marker prima di `rmSync`.
 - R3/R4: vedi PLAN (attività B-03).
+
+**Aggiornamento 2026-11-11 — A-02 implementata (R1 e R2 risolti).** Comportamento attuale di `restoreService.stage()`:
+
+- **R1:** `backupService.create('pre-restore', moment, [name])` passa il backup scelto come nome protetto a `prune(protect)`. Il backup scelto sopravvive allo stage; dopo lo stage di un `pre-restore` vecchio i `pre-restore` sono temporaneamente 4. La protezione vale solo per quella creazione: la creazione successiva di un backup di qualsiasi tipo riporta la ritenzione a 3 e può eliminare il backup scelto. L'apply resta corretto, perché usa la copia in `tmp/`; `backupName` nel marker diventa solo un'etichetta nei log.
+- **R2:** `clearPendingRestore()` è chiamato dopo verifica, controllo dello schema e backup pre-restore, subito prima di `rmSync(candidate)`. Un rifiuto (400) o un backup pre-restore fallito lasciano intatto il ripristino preparato in precedenza; un fallimento successivo lascia "nessun ripristino in attesa".
+- **Test:** `restore.service.test.ts`, describe "il backup scelto e il ripristino già preparato sono protetti"; `backup.service.test.ts`, describe "ritenzione con nomi protetti".
+- Resta come prima: la scrittura del marker non è atomica; un marker troncato finisce in quarantena al boot.
 
 ---
 
