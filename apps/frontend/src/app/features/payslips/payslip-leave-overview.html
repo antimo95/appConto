@@ -71,6 +71,7 @@
             <th scope="col" class="numeric">Maturato</th>
             <th scope="col" class="numeric">Goduto</th>
             <th scope="col" class="numeric">Residuo ({{ unitOf(type) }})</th>
+            <th scope="col">Verifica</th>
           </tr>
         </thead>
         <tbody>
@@ -84,6 +85,7 @@
               <td class="numeric">{{ quantity(o.accrued) }}</td>
               <td class="numeric">{{ quantity(o.used) }}</td>
               <td class="numeric remaining">{{ quantity(o.remaining) }}</td>
+              <td class="verification">{{ verification(type, o.payslipId) }}</td>
             </tr>
           }
         </tbody>

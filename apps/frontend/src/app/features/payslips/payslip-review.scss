@@ -3,6 +3,11 @@
 
 :host {
   display: block;
+
+  /* Il fuoco arriva da codice, non dall'utente: non serve un contorno attorno a tutta la scheda. */
+  &:focus {
+    outline: none;
+  }
 }
 
 .status {

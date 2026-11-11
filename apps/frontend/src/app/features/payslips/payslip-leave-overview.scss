@@ -116,6 +116,12 @@ td {
   text-align: right;
 }
 
+/* Il motivo di un mese non verificabile è una frase: può andare a capo. */
+.verification {
+  min-width: 12rem;
+  white-space: normal;
+}
+
 /* Il mese è un pulsante che seleziona il cedolino: inchiostro pieno, sottolineato al passaggio. */
 button {
   padding: 0;

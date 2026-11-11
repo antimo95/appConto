@@ -1,4 +1,14 @@
-import { Component, computed, effect, input, output, signal } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  afterNextRender,
+  computed,
+  effect,
+  inject,
+  input,
+  output,
+  signal
+} from '@angular/core';
 import { formatMonth } from '../../core/format';
 import { Badge } from '@shared/ui/feedback/badge/badge';
 import {
@@ -133,7 +143,14 @@ function checkLength(text: string, max: number): string | null {
   selector: 'app-payslip-review',
   imports: [Badge],
   templateUrl: './payslip-review.html',
-  styleUrl: './payslip-review.scss'
+  styleUrl: './payslip-review.scss',
+  // Il contenitore è la destinazione del fuoco alla creazione: senza, chi usa la tastiera o
+  // uno screen reader resta sul pulsante che ha appena fatto sparire il resto della pagina.
+  host: {
+    role: 'group',
+    tabindex: '-1',
+    '[attr.aria-label]': "analysis() ? 'Verifica del cedolino' : 'Modifica del cedolino'"
+  }
 })
 export class PayslipReview {
   /** I valori di partenza: una bozza d'analisi o un cedolino salvato. */
@@ -161,6 +178,7 @@ export class PayslipReview {
   protected readonly statusMessages = EXTRACTION_STATUS_MESSAGES;
   protected readonly confidenceLabels = CONFIDENCE_LABELS;
   protected readonly formatMonth = formatMonth;
+  protected readonly monthPattern = String.raw`\d{4}-(0[1-9]|1[0-2])`;
 
   protected readonly values = signal<ScalarValues>(this.emptyValues());
   protected readonly items = signal<ItemRow[]>([]);
@@ -269,6 +287,8 @@ export class PayslipReview {
   );
 
   constructor() {
+    const host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
+    afterNextRender(() => host.focus());
     // Una nuova bozza (un altro PDF, un altro cedolino da modificare) riparte da zero.
     effect(() => this.load(this.draft()));
   }

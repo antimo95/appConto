@@ -42,6 +42,8 @@
         [id]="'payslip-' + field.key"
         [type]="field.kind === 'month' ? 'month' : 'text'"
         [attr.inputmode]="field.kind === 'amount' || field.kind === 'number' ? 'decimal' : null"
+        [attr.placeholder]="field.kind === 'month' ? 'AAAA-MM' : null"
+        [attr.pattern]="field.kind === 'month' ? monthPattern : null"
         [value]="values()[field.key]"
         [attr.aria-invalid]="scalarErrors()[field.key] ? 'true' : null"
         [attr.aria-describedby]="scalarErrors()[field.key] ? 'payslip-error-' + field.key : null"
@@ -76,11 +78,12 @@
               type="text"
               [attr.aria-label]="'Codice della voce ' + (i + 1)"
               [attr.aria-invalid]="itemErrors()[i].code ? 'true' : null"
+              [attr.aria-describedby]="itemErrors()[i].code ? 'payslip-item-' + row.id + '-code-error' : null"
               [value]="row.code"
               (input)="setItem(row.id, 'code', $event)"
             />
             @if (itemErrors()[i].code; as message) {
-              <span class="field-error">{{ message }}</span>
+              <span class="field-error" [id]="'payslip-item-' + row.id + '-code-error'">{{ message }}</span>
             }
           </td>
           <td>
@@ -88,11 +91,12 @@
               type="text"
               [attr.aria-label]="'Descrizione della voce ' + (i + 1)"
               [attr.aria-invalid]="itemErrors()[i].description ? 'true' : null"
+              [attr.aria-describedby]="itemErrors()[i].description ? 'payslip-item-' + row.id + '-description-error' : null"
               [value]="row.description"
               (input)="setItem(row.id, 'description', $event)"
             />
             @if (itemErrors()[i].description; as message) {
-              <span class="field-error">{{ message }}</span>
+              <span class="field-error" [id]="'payslip-item-' + row.id + '-description-error'">{{ message }}</span>
             }
           </td>
           <td>
@@ -113,11 +117,12 @@
               inputmode="decimal"
               [attr.aria-label]="'Importo della voce ' + (i + 1)"
               [attr.aria-invalid]="itemErrors()[i].amount ? 'true' : null"
+              [attr.aria-describedby]="itemErrors()[i].amount ? 'payslip-item-' + row.id + '-amount-error' : null"
               [value]="row.amount"
               (input)="setItem(row.id, 'amount', $event)"
             />
             @if (itemErrors()[i].amount; as message) {
-              <span class="field-error">{{ message }}</span>
+              <span class="field-error" [id]="'payslip-item-' + row.id + '-amount-error'">{{ message }}</span>
             }
           </td>
           <td>
@@ -126,11 +131,12 @@
               inputmode="decimal"
               [attr.aria-label]="'Quantità della voce ' + (i + 1)"
               [attr.aria-invalid]="itemErrors()[i].quantity ? 'true' : null"
+              [attr.aria-describedby]="itemErrors()[i].quantity ? 'payslip-item-' + row.id + '-quantity-error' : null"
               [value]="row.quantity"
               (input)="setItem(row.id, 'quantity', $event)"
             />
             @if (itemErrors()[i].quantity; as message) {
-              <span class="field-error">{{ message }}</span>
+              <span class="field-error" [id]="'payslip-item-' + row.id + '-quantity-error'">{{ message }}</span>
             }
           </td>
           <td>
@@ -138,11 +144,12 @@
               type="text"
               [attr.aria-label]="'Unità della voce ' + (i + 1)"
               [attr.aria-invalid]="itemErrors()[i].unit ? 'true' : null"
+              [attr.aria-describedby]="itemErrors()[i].unit ? 'payslip-item-' + row.id + '-unit-error' : null"
               [value]="row.unit"
               (input)="setItem(row.id, 'unit', $event)"
             />
             @if (itemErrors()[i].unit; as message) {
-              <span class="field-error">{{ message }}</span>
+              <span class="field-error" [id]="'payslip-item-' + row.id + '-unit-error'">{{ message }}</span>
             }
           </td>
           <td>
@@ -186,6 +193,7 @@
             <select
               [attr.aria-label]="'Tipo del saldo ' + (i + 1)"
               [attr.aria-invalid]="leaveErrors()[i].type ? 'true' : null"
+              [attr.aria-describedby]="leaveErrors()[i].type ? 'payslip-leave-' + row.id + '-type-error' : null"
               (change)="setLeave(row.id, 'type', $event)"
             >
               @for (type of leaveTypes; track type) {
@@ -193,7 +201,7 @@
               }
             </select>
             @if (leaveErrors()[i].type; as message) {
-              <span class="field-error">{{ message }}</span>
+              <span class="field-error" [id]="'payslip-leave-' + row.id + '-type-error'">{{ message }}</span>
             }
           </td>
           <td>
@@ -202,11 +210,12 @@
               inputmode="decimal"
               [attr.aria-label]="'Maturato del saldo ' + (i + 1)"
               [attr.aria-invalid]="leaveErrors()[i].accrued ? 'true' : null"
+              [attr.aria-describedby]="leaveErrors()[i].accrued ? 'payslip-leave-' + row.id + '-accrued-error' : null"
               [value]="row.accrued"
               (input)="setLeave(row.id, 'accrued', $event)"
             />
             @if (leaveErrors()[i].accrued; as message) {
-              <span class="field-error">{{ message }}</span>
+              <span class="field-error" [id]="'payslip-leave-' + row.id + '-accrued-error'">{{ message }}</span>
             }
           </td>
           <td>
@@ -215,11 +224,12 @@
               inputmode="decimal"
               [attr.aria-label]="'Goduto del saldo ' + (i + 1)"
               [attr.aria-invalid]="leaveErrors()[i].used ? 'true' : null"
+              [attr.aria-describedby]="leaveErrors()[i].used ? 'payslip-leave-' + row.id + '-used-error' : null"
               [value]="row.used"
               (input)="setLeave(row.id, 'used', $event)"
             />
             @if (leaveErrors()[i].used; as message) {
-              <span class="field-error">{{ message }}</span>
+              <span class="field-error" [id]="'payslip-leave-' + row.id + '-used-error'">{{ message }}</span>
             }
           </td>
           <td>
@@ -228,11 +238,12 @@
               inputmode="decimal"
               [attr.aria-label]="'Residuo del saldo ' + (i + 1)"
               [attr.aria-invalid]="leaveErrors()[i].remaining ? 'true' : null"
+              [attr.aria-describedby]="leaveErrors()[i].remaining ? 'payslip-leave-' + row.id + '-remaining-error' : null"
               [value]="row.remaining"
               (input)="setLeave(row.id, 'remaining', $event)"
             />
             @if (leaveErrors()[i].remaining; as message) {
-              <span class="field-error">{{ message }}</span>
+              <span class="field-error" [id]="'payslip-leave-' + row.id + '-remaining-error'">{{ message }}</span>
             }
           </td>
           <td>
@@ -240,11 +251,12 @@
               type="text"
               [attr.aria-label]="'Unità del saldo ' + (i + 1)"
               [attr.aria-invalid]="leaveErrors()[i].unit ? 'true' : null"
+              [attr.aria-describedby]="leaveErrors()[i].unit ? 'payslip-leave-' + row.id + '-unit-error' : null"
               [value]="row.unit"
               (input)="setLeave(row.id, 'unit', $event)"
             />
             @if (leaveErrors()[i].unit; as message) {
-              <span class="field-error">{{ message }}</span>
+              <span class="field-error" [id]="'payslip-leave-' + row.id + '-unit-error'">{{ message }}</span>
             }
           </td>
           <td>
@@ -271,7 +283,7 @@
 </button>
 
 @if (problemCount() > 0) {
-  <p class="message--error problems" role="alert">
+  <p class="message--error problems" role="status">
     {{ problemCount() === 1 ? 'Manca o non è valido 1 valore' : 'Mancano o non sono validi ' + problemCount() + ' valori' }}:
     la conferma è bloccata finché non sono corretti.
   </p>

@@ -49,6 +49,19 @@ export class PayslipLeaveOverview {
     return (type.unit ?? type.latest?.unit ?? 'ore').toLowerCase();
   }
 
+  /** Il motivo se il mese non si può verificare (altrimenti non si capirebbe perché); sennò l'esito. */
+  protected verification(type: LeaveTypeOverview, payslipId: string): string {
+    const check = type.checks.find((candidate) => candidate.payslipId === payslipId);
+
+    if (check === undefined) {
+      return '—';
+    }
+
+    return check.status === 'non_verificabile' && check.reason !== ''
+      ? check.reason
+      : STATUS_LABELS[check.status];
+  }
+
   protected latestText(type: LeaveTypeOverview): string {
     return type.latest === null ? '—' : formatLeaveValue(type.latest.remaining, type.latest.unit);
   }

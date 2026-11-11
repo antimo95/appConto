@@ -272,6 +272,32 @@ describe('PayslipLeaveOverview', () => {
     expect(findButton(host, 'Vai al cedolino')).toBeUndefined();
   });
 
+  it('la cronologia ha una colonna «Verifica»: il motivo se il mese non è verificabile, «Coerente» se torna', async () => {
+    const host = await render(coherent());
+    const history = [...host.querySelectorAll('table')].find(
+      (table) => table.getAttribute('aria-label') === 'Cronologia Ferie'
+    )!;
+    const headers = [...history.querySelectorAll('th')].map((th) => th.textContent?.trim());
+    const verification = (row: number): string =>
+      history.querySelectorAll('tbody tr')[row].querySelector('.verification')?.textContent?.trim() ?? '';
+
+    expect(headers).toContain('Verifica');
+    expect(verification(0)).toBe('Primo cedolino in archivio: manca il termine di confronto.');
+    expect(verification(1)).toBe('Coerente');
+    expect(verification(2)).toBe('Coerente');
+  });
+
+  it('nella cronologia un mese con anomalia è segnato «Anomalia»', async () => {
+    const host = await render(withAnomaly());
+    const history = [...host.querySelectorAll('table')].find(
+      (table) => table.getAttribute('aria-label') === 'Cronologia Ferie'
+    )!;
+
+    expect(history.querySelectorAll('tbody tr')[1].querySelector('.verification')?.textContent?.trim()).toBe(
+      'Anomalia'
+    );
+  });
+
   it('mostra lo stato «Non verificabile»', async () => {
     const data = coherent();
     data.types[1].status = 'non_verificabile';

@@ -572,6 +572,66 @@ describe('PayslipReview', () => {
     expect(alerts[0].nextElementSibling?.classList.contains('actions')).toBe(true);
   });
 
+  it('il campo del mese indica il formato atteso', async () => {
+    await render();
+
+    expect(field('period').getAttribute('placeholder')).toBe('AAAA-MM');
+    expect(field('period').getAttribute('pattern')).toBe('\\d{4}-(0[1-9]|1[0-2])');
+  });
+
+  it("l'errore di un campo di voce o di saldo è collegato all'input con aria-describedby", async () => {
+    await render();
+    const described = (label: string): HTMLElement | null => {
+      const input = host().querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!;
+      const id = input.getAttribute('aria-describedby');
+      return id === null ? null : host().querySelector<HTMLElement>(`#${id}`);
+    };
+
+    // Valido: nessun collegamento.
+    expect(described('Quantità della voce 1')).toBeNull();
+    expect(described('Maturato del saldo 1')).toBeNull();
+
+    await type(host().querySelector('[aria-label="Quantità della voce 1"]')!, '1e3');
+    await type(host().querySelector('[aria-label="Maturato del saldo 1"]')!, '1e3');
+
+    const itemError = described('Quantità della voce 1');
+    const leaveError = described('Maturato del saldo 1');
+    expect(itemError?.textContent).toContain('Valore non valido.');
+    expect(itemError?.id).toMatch(/^payslip-item-\d+-quantity-error$/);
+    expect(leaveError?.textContent).toContain('Valore non valido.');
+    expect(leaveError?.id).toMatch(/^payslip-leave-\d+-accrued-error$/);
+  });
+
+  it("l'avviso sul numero di valori da correggere è uno stato, non un allarme", async () => {
+    await render(draft({ netCents: null }), analysis({ status: 'incomplete' }));
+
+    const problems = host().querySelector('.problems')!;
+    expect(problems.getAttribute('role')).toBe('status');
+    expect(host().querySelector('.problems[role="alert"]')).toBeNull();
+  });
+
+  it('alla creazione porta il fuoco sul proprio contenitore, con il nome secondo il momento', async () => {
+    await render();
+    expect(document.activeElement).toBe(host());
+    expect(host().getAttribute('role')).toBe('group');
+    expect(host().getAttribute('tabindex')).toBe('-1');
+    expect(host().getAttribute('aria-label')).toBe('Verifica del cedolino');
+
+    await render(draft(), null);
+    expect(document.activeElement).toBe(host());
+    expect(host().getAttribute('aria-label')).toBe('Modifica del cedolino');
+  });
+
+  it("una nuova bozza non rimette il fuoco sul contenitore mentre l'utente lavora", async () => {
+    await render();
+    field('net').focus();
+
+    fixture.componentRef.setInput('draft', draft({ netCents: 123400 }));
+    await fixture.whenStable();
+
+    expect(document.activeElement).toBe(field('net'));
+  });
+
   describe('isDirty', () => {
     it("è falso all'inizio, vero dopo aver scritto in un campo, falso con una nuova bozza", async () => {
       await render();
