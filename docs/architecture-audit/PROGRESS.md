@@ -285,3 +285,39 @@ Lo stato corrente e il prossimo passo sono in `HANDOFF.md`; lo stato di ogni att
 ### In sospeso
 
 - Nessuna attività parziale. Fase 2 chiusa. Prossima: B-02 (fase 3).
+
+---
+
+## Sessione 2026-11-11 (settima parte) — fase 3: B-02, B-03, B-01
+
+- **Branch:** `consolidamento/fase-2` (il proprietario farà il merge a fine fase 3). **Commit iniziale:** `7f76cf5`. **Commit finale:** quello che contiene la fase 3.
+
+| ID | Esito |
+|---|---|
+| B-02 | COMPLETED (con ripiego documentato per `npm ci`) |
+| B-03 | COMPLETED |
+| B-01 | COMPLETED |
+
+### File modificati
+
+- `README.md`, `apps/frontend/README.md` (B-02).
+- `docs/architecture/architecture.md`, `docs/architecture/project-context.md`, `docs/README.md` (nuovo), `apps/backend/src/modules/transactions/transactions.schema.ts` e `transaction.model.ts` (solo commenti) (B-03).
+- `AGENTS.md`, `CLAUDE.md` (nuovi) (B-01).
+- `docs/architecture-audit/PLAN.md`, `PROGRESS.md`, `HANDOFF.md`.
+
+### Verifiche
+
+- **Variabili d'ambiente:** grep di `process.env` e `env.` nel codice di produzione: 8 variabili (`PORT` insieme a `MYFINANCE_PORT`).
+- **Clone pulito** (in `%TEMP%`, cancellato al termine):
+  - `npm ci` alla radice fallisce: `node-gyp rebuild` per `better-sqlite3`, "Could not find any Visual Studio installation to use". Il pacchetto ha `gypfile: false` e `prebuilds/win32-x64.node`; la causa del comportamento di npm 11.6.2 non è stata indagata. `npm ci --ignore-scripts` riesce → G-04, ripiego nel README;
+  - `npm ci --prefix apps/frontend` riesce;
+  - `npm run check`: test backend 1083/1084; il fallimento è `isolate-database.test.ts`, che presume il repository fuori da `os.tmpdir()` → G-05. Test frontend 844/844 e build eseguiti a parte: ok;
+  - backend con `MYFINANCE_DATA` temporanea e `MYFINANCE_PORT=3999`: `/api/health` ok, struttura dei dati creata nella cartella temporanea. Processo fermato.
+- **Percorsi di `AGENTS.md`:** 19 controllati con `test -e`, tutti presenti.
+- **`npm run check` nel repository:** uscita 0 in 104 s; backend 1084/1084, frontend 844/844, build.
+- **Prova informale di `AGENTS.md`** (subagent Haiku con il solo `AGENTS.md` come punto di partenza, sola lettura): ha indicato `npm run check`, i file per un nuovo endpoint in `modules/loans/`, la regola LO1/D9 con il punto in cui è garantita e il contratto di `dependents`, e la prova manuale con `MYFINANCE_DATA`. Lacune segnalate e corrette: mancava la sintassi Windows per `MYFINANCE_DATA` (l'esempio del README con `/tmp` non funziona in PowerShell; aggiunti esempi PowerShell e Bash) e mancava come un nuovo chiamante ottiene `dependents` (dalla composizione in `app.ts`). Non segnalata come lacuna da correggere: la forma di una risposta non JSON, fuori dall'ambito di `AGENTS.md`.
+
+### In sospeso
+
+- Nessuna attività parziale. Fase 3 chiusa. Prossima: C-01 (fase 4).
+- Osservazioni nuove in `PLAN.md` §9: G-04 (`npm ci` e `better-sqlite3` su Windows), G-05 (test di isolamento con repository sotto `os.tmpdir()`).

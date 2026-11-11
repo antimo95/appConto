@@ -2,7 +2,7 @@
 
 Applicazione web locale per analizzare gli estratti conto bancari esportati in CSV.
 
-La documentazione di progetto si trova in [docs/architecture/](docs/architecture/).
+La documentazione di progetto è indicizzata in [docs/README.md](docs/README.md).
 
 ## Stato
 
@@ -37,24 +37,94 @@ La documentazione di progetto si trova in [docs/architecture/](docs/architecture
   quanto denaro si attende indietro, e le **restituzioni** — bancarie o in
   contanti — lo riducono. Credito residuo e stato sono sempre calcolati.
 
-## Avvio
+## Installazione
+
+Serve Node.js 24 (il package portatile incorpora la v24.11.1, vedi
+`scripts/node-runtime.json`). Backend e frontend hanno dipendenze separate:
+
+```bash
+npm ci
+npm ci --prefix apps/frontend
+```
+
+Su Windows senza gli strumenti di compilazione C++ di Visual Studio il primo
+comando può fallire su `better-sqlite3`: npm prova a compilarlo con `node-gyp`
+anche se il pacchetto contiene già i binari per Windows (`prebuilds/`). In quel
+caso usa `npm ci --ignore-scripts` per la radice: il backend carica i binari
+inclusi e `npm run check` passa (verificato con npm 11.6.2).
+
+## Avvio in sviluppo
 
 Servono due terminali.
 
 ```bash
-# 1. backend Express -> http://localhost:3000
-npm install
+# 1. backend Express -> http://127.0.0.1:3000
 npm run dev:backend
 
-# 2. frontend Angular -> http://localhost:4200
+# 2. frontend Angular -> http://localhost:4200 (inoltra /api al backend)
 npm run dev:frontend
 ```
 
-Il database SQLite viene creato automaticamente in `apps/backend/data/appconto.db`
-al primo avvio, applicando le migrazioni presenti in `apps/backend/drizzle/`.
-Le migrazioni successive vengono applicate ad ogni avvio, senza perdere i dati
-già presenti. Per ripartire da zero è sufficiente eliminare la cartella
-`apps/backend/data/`.
+Il proxy del frontend (`apps/frontend/proxy.conf.json`) punta alla porta 3000:
+se `config/settings.json` o `MYFINANCE_PORT` ne indicano un'altra, il frontend
+in sviluppo non trova il backend.
+
+## Verifica
+
+```bash
+npm run check
+```
+
+Esegue typecheck del backend, test del backend, test del frontend e build, e
+si ferma al primo errore (circa due minuti). Esce con 0 solo se tutto è sano.
+
+## Dove stanno i dati
+
+Database, backup, log e temporanei stanno sotto una sola cartella, `DATA_ROOT`.
+Il database è `<DATA_ROOT>/database.sqlite`; accanto ci sono `backups/`,
+`logs/` e `tmp/`. `DATA_ROOT` si sceglie, in quest'ordine
+(`apps/backend/src/paths.ts`):
+
+1. la variabile `MYFINANCE_DATA`;
+2. `dataRoot` in `config/settings.json` (vedi `config/settings.example.json`);
+3. la cartella del file indicato da `DATABASE_FILE` (alias storico);
+4. altrimenti `data/` nella radice del repository (o del package).
+
+Un percorso relativo si risolve rispetto alla radice dell'applicazione, non
+alla cartella da cui si lancia il comando.
+
+Il database viene creato al primo avvio applicando le migrazioni di
+`apps/backend/drizzle/`; le successive si applicano a ogni avvio, dopo un
+backup automatico, senza perdere i dati. Per ripartire da zero c'è l'azzeramento
+(`POST /api/reset`), che crea prima una copia `pre-reset`; i backup si creano,
+si scaricano e si ripristinano con le API `/api/backups` e `/api/restore`
+(tabella sotto).
+
+> **Per prove manuali e test usa sempre una cartella temporanea**: senza, l'app
+> apre il tuo archivio reale. I test del backend si isolano da soli
+> (`apps/backend/src/test-support/isolate-database.ts`).
+>
+> ```powershell
+> # PowerShell
+> $env:MYFINANCE_DATA = "$env:TEMP\appconto-prova"; npm run dev:backend
+> ```
+>
+> ```bash
+> # Git Bash, macOS, Linux
+> MYFINANCE_DATA="$(mktemp -d)" npm run dev:backend
+> ```
+
+### Variabili d'ambiente
+
+| Variabile | Effetto |
+|---|---|
+| `MYFINANCE_DATA` | Radice dei dati (`DATA_ROOT`), con la precedenza più alta |
+| `DATABASE_FILE` | Percorso del database; se `MYFINANCE_DATA` e `dataRoot` mancano, la sua cartella diventa `DATA_ROOT` |
+| `MYFINANCE_PORT`, `PORT` | Porta del backend, in quest'ordine; poi `port` di `config/settings.json`; poi 3000 |
+| `MYFINANCE_AUTO_BACKUP_HOURS` | Ogni quante ore creare un backup automatico (`0` lo disattiva; predefinito 24) |
+| `MYFINANCE_NO_BROWSER` | `1`: il launcher del package non apre il browser |
+| `MYFINANCE_PORT_FALLBACK` | `1`: se la porta è occupata ne usa un'altra. La imposta il launcher, non va impostata a mano |
+| `MYFINANCE_CONSOLE_TEMPORANEA` | `1`: la finestra del launcher attende un tasto prima di chiudersi. La imposta `start.bat` |
 
 ## Utilizzo
 
@@ -215,6 +285,8 @@ nuove, duplicate, righe scartate e merchant creati.
 
 ## API
 
+Tutte le rotte hanno il prefisso `/api` (per esempio `GET /api/transactions`).
+
 | Metodo | Rotta                        | Descrizione                                                  |
 |--------|------------------------------|--------------------------------------------------------------|
 | POST   | `/import/csv/analysis`       | Dice quali colonne contiene il file e quali sono state riconosciute, senza importare (body testuale, `text/csv`) |
@@ -257,6 +329,7 @@ nuove, duplicate, righe scartate e merchant creati.
 
 | Comando                      | Descrizione                                   |
 |------------------------------|-----------------------------------------------|
+| `npm run check`              | Typecheck, test backend e frontend, build: il controllo prima di un commit |
 | `npm run dev:backend`        | Backend in watch mode                         |
 | `npm run start:backend`      | Backend senza watch                           |
 | `npm run typecheck:backend`  | Type check del backend                        |

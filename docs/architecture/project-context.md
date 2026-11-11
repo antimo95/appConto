@@ -248,6 +248,11 @@ Non è prevista una piattaforma multiutente.
 
 # Roadmap
 
+*Roadmap iniziale, superata: le milestone M1–M5 sono state realizzate e poi
+estese (prestiti, analytics, manutenzione, package portatile). Lo stato attuale
+è nel [README](../../README.md); il consolidamento in corso è in
+[architecture-audit/PLAN.md](../architecture-audit/PLAN.md).*
+
 ## M1
 
 Importazione CSV.

@@ -33,7 +33,11 @@ export interface NewTransaction extends FingerprintedTransaction {
   merchantId: string;
 }
 
-/** Transazione persistita. Una volta importata è immutabile. */
+/**
+ * Transazione persistita. Data, descrizione e importo non cambiano più; il
+ * tipo è correggibile (salvo i vincoli dei prestiti) e il movimento si può
+ * cancellare.
+ */
 export interface Transaction extends ParsedTransaction {
   id: string;
   /** Null solo per le transazioni importate prima dell'introduzione dei merchant. */

@@ -5,16 +5,17 @@ Punto di ingresso per la prossima sessione. Fotografia dello stato operativo: le
 ## Stato generale
 
 - **Ultimo aggiornamento:** 2026-11-11.
-- **Branch:** `consolidamento/fase-2`, da `master` a `46302f9` (merge della fase 1, PR #12). Non pubblicato.
-- **HEAD:** commit di C-04 (vedi `git log --oneline -3`); prima `2470868` (C-03).
-- **Working tree:** pulito dopo il commit di C-04.
-- **Roadmap:** fasi 1 e 2 chiuse (A-04, A-05a, A-02, A-03, C-06, C-03, C-04 COMPLETED; A-05b BLOCKED da A-01). Prossima: fase 3. DEFERRED fuori perimetro: A-01, E-02, F-05. Osservazione G-03 aperta. Dettaglio in `PLAN.md` §3.
+- **Branch:** `consolidamento/fase-2`, da `master` a `46302f9` (merge della fase 1, PR #12). Contiene fasi 2 e 3. Non pubblicato: il proprietario farà il merge a fine fase 3, quindi va pubblicato e unito prima di iniziare la fase 4 (chiedere).
+- **HEAD:** commit della fase 3 (vedi `git log --oneline -5`).
+- **Working tree:** pulito dopo il commit della fase 3.
+- **Roadmap:** fasi 1, 2 e 3 chiuse (A-04, A-05a, A-02, A-03, C-06, C-03, C-04, B-02, B-03, B-01 COMPLETED; A-05b BLOCKED da A-01). Prossima: fase 4. DEFERRED fuori perimetro: A-01, E-02, F-05. Osservazioni aperte: G-03, G-04, G-05 (§9). Dettaglio in `PLAN.md` §3.
 
 ## Ultimo lavoro completato
 
-- **C-03 (LO1):** il tipo di un movimento d'origine di prestiti è bloccato (409 dal backend, select disabilitata con motivo nel frontend). D9 usa lo stesso `requiredType`.
-- **C-04 (I1):** la conferma di cancellazione avverte che un nuovo import dello stesso estratto riporterà i movimenti; un test di caratterizzazione fissa il comportamento.
-- Evidenze: schede C-03 e C-04 in `PLAN.md`, SM4 in `STATE_MACHINES.md`, `PROGRESS.md`.
+- **B-02:** README con installazione (incluso il ripiego `npm ci --ignore-scripts` su Windows senza Visual Studio), avvio, `npm run check`, `DATA_ROOT` e variabili d'ambiente. Verificato su clone pulito.
+- **B-03:** `architecture.md` allineato al codice (11 moduli, dipendenze reali, regole corrette, LO1/D9/I1); `docs/README.md` classifica i documenti in attuali e storici.
+- **B-01:** `AGENTS.md` (86 righe) e `CLAUDE.md`. Gli agenti nuovi partono da lì; questo file resta il punto di ripresa del consolidamento.
+- Evidenze: schede in `PLAN.md`, `PROGRESS.md`.
 
 ## Lavoro in corso
 
@@ -22,17 +23,19 @@ Nessuna attività parziale.
 
 ## Prossima attività
 
-- **ID:** B-02 — README eseguibile (fase 3, ordine §7: B-02 → B-03 → B-01).
-- **Perché ora:** fase 3, ora che LO1 e I1 sono implementate e si possono documentare.
-- **Prerequisiti:** A-05a (completata).
-- **Cosa fare** (scheda B-02 in `PLAN.md`): correggere il percorso del database nel `README.md` (il file reale è `database.sqlite`, precedenza di `DATA_ROOT` in `apps/backend/src/paths.ts`), elencare le variabili d'ambiente, citare `npm run check`.
-- **Poi:** B-03 (`docs/architecture.md`: elenco reale degli 11 moduli, regole false da correggere, LO1 e I1 ora implementate) e B-01 (`AGENTS.md` < 120 righe, con il contratto di `dependents` in `updateType`, le regole LO1/I1, `npm run check`).
-- **Pubblicazione:** il branch `consolidamento/fase-2` contiene C-03 e C-04 e non è ancora pubblicato; chiedere al proprietario se pubblicarlo ora o a fine fase 3.
-- **Da non dimenticare:** G-03, `scripts/verify-package.mjs` attende 22 categorie invece di 24; `verify:package` è 12/17 per questa causa.
+- **Prima:** il merge di `consolidamento/fase-2` (chiesto dal proprietario a fine fase 3). Verificare con `git fetch` e `git merge-base --is-ancestor consolidamento/fase-2 origin/master`; poi un nuovo branch per la fase 4.
+- **ID:** C-01 — Impostazioni coerenti dopo il reset (ordine §7: C-01 → C-05).
+- **Perché ora:** prima attività della fase 4; unico caso noto in cui l'interfaccia può riscrivere dati appena azzerati.
+- **Prerequisiti:** A-04 (completata).
+- **File da esaminare:** `apps/frontend/src/app/features/settings/settings-page.{ts,html}` (caricamento solo in `ngOnInit`), `apps/frontend/src/app/features/maintenance/reset-panel.ts` (nessun output dopo il reset), `reset-panel.spec.ts`; manca `settings-page.spec.ts`.
+- **Progetto deciso** (scheda C-01): `ResetPanel` espone `reset = output<void>()`; `SettingsPage` estrae `load()` e lo richiama su `(reset)`, azzerando `saved` ed `errors`. Nessun servizio di eventi, nessuno store.
+- **Primo passo consigliato:** nuova `settings-page.spec.ts` con `HttpTestingController`: `GET /api/settings` con saldo valorizzato, reset riuscito, ci si aspetta un secondo `GET` e il form a `0` con data vuota. Oggi fallisce.
+- **Poi:** C-05 (pannello backup e ripristino, dipende da A-02, C-06 e C-01), C-02, D-01, D-02, E-01, E-03.
+- **Da non dimenticare:** G-03 (`verify:package` 12/17 per 22 categorie attese invece di 24), da correggere prima del prossimo rilascio.
 
 ## Verifiche
 
-- **Ultimo `npm run check`:** 2026-11-11, dopo C-04: uscita 0, 109 s (backend 1084/1084, frontend 844/844, build ok).
+- **Ultimo `npm run check`:** 2026-11-11, dopo la fase 3: uscita 0, 104 s (backend 1084/1084, frontend 844/844, build ok). Su clone pulito: vedi B-02 (G-04, G-05).
 - **Ultimo `npm run verify:package`:** 12/17; i 5 fallimenti dipendono da G-03, non dalle attività svolte.
 - **Non eseguito:** doppio clic manuale (sostituito da prova scriptata); prove con antivirus aggressivo, OneDrive, chiavette FAT/exFAT.
 - **Ambiente:** Windows 11, Node v24.11.1. Comandi eseguiti da Git Bash e PowerShell. Le righe "Not implemented: HTMLCanvasElement's getContext()" nei test frontend sono avvisi di jsdom.
@@ -53,5 +56,5 @@ Nessuna attività parziale.
 1. Leggere questo file, poi la scheda della prossima attività in `PLAN.md` §6 e l'ultima sezione di `PROGRESS.md`.
 2. Verificare `git branch --show-current`, `git rev-parse --short HEAD`, `git status --porcelain` e confrontarli con "Stato generale". Se divergono, aggiornare questo file prima di continuare.
 3. Eseguire `npm run check` per confermare che la base è verde (circa 2 minuti).
-4. Riprendere da B-02 (`PLAN.md` §6, Fase 3).
-5. A fine attività: `npm run check`; aggiornare `PLAN.md` §3 e la scheda, aggiungere una sezione a `PROGRESS.md`, riscrivere questo file. Aggiornare `STATE_MACHINES.md` solo se cambia il comportamento implementato (la fase 3 è documentazione: di norma no).
+4. Verificare il merge della fase 2-3, poi riprendere da C-01 (`PLAN.md` §6, Fase 4) con un test che fallisce prima della correzione.
+5. A fine attività: `npm run check`; aggiornare `PLAN.md` §3 e la scheda, aggiungere una sezione a `PROGRESS.md`, riscrivere questo file. Aggiornare `STATE_MACHINES.md` se cambia il comportamento implementato (C-01 chiude F5 di SM7; C-05 tocca SM1). Aggiornare `AGENTS.md` se cambia un invariante o un comando.

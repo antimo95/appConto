@@ -156,9 +156,9 @@ Legenda: NOT STARTED · IN PROGRESS · COMPLETED · PARTIALLY COMPLETED · BLOCK
 | A-03 | COMPLETED (2026-11-11) | Furto del lock tramite rivendicazione `wx` per istanza in `instance-lock.ts`; test unitari, stress tra processi 50/50, prova sul pacchetto con `taskkill /F` | — |
 | A-04 | COMPLETED (2026-11-11) | `npm run test:frontend` esce con 0; 840/840; nessun "Unhandled Errors". Rotte reali con pagine vuote in `app.spec.ts` (vedi scheda) | — |
 | A-05 | Divisa | — | **A-05a** COMPLETED (2026-11-11): script `check` nel `package.json` radice, esito 0 a progetto sano e ≠ 0 per ciascun passo rotto. **A-05b** BLOCKED da A-01 |
-| B-01 | NOT STARTED | Nessun `AGENTS.md`/`CLAUDE.md` nel repository | Intera attività |
-| B-02 | NOT STARTED | `README.md:53` cita `apps/backend/data/appconto.db`; il file reale è `database.sqlite` (`paths.ts:127`) | Intera attività |
-| B-03 | NOT STARTED | `architecture.md:197-217` elenca 5 moduli su 11; regole false a `:444` e `:456` | Intera attività, dopo C-03 e C-04 |
+| B-01 | COMPLETED (2026-11-11) | `AGENTS.md` (86 righe) e `CLAUDE.md` (una riga) | — |
+| B-02 | COMPLETED (2026-11-11) | README: installazione (con il caso `better-sqlite3` su Windows), avvio, `npm run check`, `DATA_ROOT` e variabili d'ambiente; verificato su clone pulito | — |
+| B-03 | COMPLETED (2026-11-11) | `architecture.md` allineato (11 moduli, dipendenze reali, regole corrette, LO1/D9/I1), `docs/README.md` con attuali e storici, due commenti nel codice corretti | — |
 | C-01 | NOT STARTED | `settings-page.ts:52-68` carica una sola volta; `reset-panel.ts:63-69` non emette nulla | Intera attività; manca `settings-page.spec.ts` |
 | C-02 | NOT STARTED | `loan-detail-page.html:300-311`: clic diretto su `removeRepayment` | Intera attività |
 | C-03 | COMPLETED (2026-11-11) | `requiredType` sui legami (`loans.service.ts`), 409 in `updateType`, select bloccata nel frontend; nuovo `loans.type-lock.test.ts` e test di rotta | Riferimenti in `AGENTS.md` con B-01 |
@@ -179,7 +179,7 @@ Legenda: NOT STARTED · IN PROGRESS · COMPLETED · PARTIALLY COMPLETED · BLOCK
 | F-05 | DEFERRED (fuori perimetro) | — | §10 |
 | G-01, G-02 | NOT STARTED | — | Rinviabili (§9) |
 
-Al 2026-11-11 sono COMPLETED A-04, A-05a, A-02, A-03 e C-06 (fase 1, unita in `master` con la PR #12, salvo A-05b BLOCKED) e C-03, C-04 (fase 2, branch `consolidamento/fase-2`). Evidenze nelle schede e in `PROGRESS.md`. Nessuna attività è IN PROGRESS.
+Al 2026-11-11 sono COMPLETED A-04, A-05a, A-02, A-03 e C-06 (fase 1, unita in `master` con la PR #12, salvo A-05b BLOCKED) e C-03, C-04 (fase 2) e B-02, B-03, B-01 (fase 3), sul branch `consolidamento/fase-2`. Evidenze nelle schede e in `PROGRESS.md`. Nessuna attività è IN PROGRESS.
 
 ---
 
@@ -648,6 +648,14 @@ Scala di effort: **XS** ≤ mezza giornata · **S** ½–1 giorno · **M** 2–3
   - DX positivo.
   - AX positivo.
 - **Risultato atteso:** onboarding in pochi minuti senza informazioni errate.
+- **Stato: COMPLETED (2026-11-11).**
+  - **Intervento realizzato:** sezioni Installazione, Avvio in sviluppo (con l'avvertenza sul proxy a porta 3000), Verifica, Dove stanno i dati (posizione reale, precedenza di `DATA_ROOT`, avviso sull'archivio reale), tabella delle 7 variabili d'ambiente ricavate con grep di `process.env` (`MYFINANCE_DATA`, `DATABASE_FILE`, `MYFINANCE_PORT`/`PORT`, `MYFINANCE_AUTO_BACKUP_HOURS`, `MYFINANCE_NO_BROWSER`, `MYFINANCE_PORT_FALLBACK`, `MYFINANCE_CONSOLE_TEMPORANEA`); prefisso `/api` dichiarato prima della tabella delle API; `npm run check` nella tabella dei comandi; link all'indice `docs/README.md`. `apps/frontend/README.md` sostituito da un rimando. Backup e ripristino rimandano alle API (C-05 non ancora fatto).
+  - **Verifica su clone pulito** (`git clone` locale in una cartella temporanea, poi cancellata):
+    - `npm ci` alla radice **fallisce** su questa macchina: npm 11.6.2 lancia `node-gyp rebuild` per `better-sqlite3` e non trova Visual Studio, anche se il pacchetto contiene `prebuilds/win32-x64.node` e dichiara `gypfile: false`. Causa non indagata oltre. Documentato nel README il ripiego `npm ci --ignore-scripts`, che funziona (osservazione G-04);
+    - `npm ci --prefix apps/frontend` riesce;
+    - `npm run check`: typecheck ok; test backend 1083/1084. L'unico fallimento (`isolate-database.test.ts`, "rifiuta un percorso fuori dalla cartella temporanea") dipende dall'aver clonato sotto `%TEMP%`: il test presume che il repository non stia nella cartella temporanea (osservazione G-05). Frontend 844/844 e build eseguiti a parte: riusciti;
+    - backend avviato con `MYFINANCE_DATA` temporanea e porta 3999: `GET /api/health` → `{"status":"ok"}`, database, `backups/`, `logs/`, `tmp/` creati nella cartella temporanea.
+  - **Criteri:** ogni percorso e variabile citati verificati nel codice. "Tutti i comandi riescono su clone pulito" è soddisfatto con il ripiego documentato per `npm ci`, non con il comando base.
 
 #### B-03 · `architecture.md` allineato al codice e alle regole implementate
 
@@ -685,6 +693,39 @@ Scala di effort: **XS** ≤ mezza giornata · **S** ½–1 giorno · **M** 2–3
   - DX positivo.
   - AX fortemente positivo.
 - **Risultato atteso:** un riferimento architetturale affidabile.
+- **Stato: COMPLETED (2026-11-11).**
+  - **Intervento realizzato in `architecture.md`:** sezione *Feature Modules* riscritta con gli 11 moduli (tabella), le cartelle fuori da `modules/`, il layout a file piatti e una sottosezione *Dipendenze reali* (nucleo ledger, read model, porte, eccezioni note). *Persistence* con eccezioni, join in lettura, scrittore unico e centesimi. *Logging* con l'eccezione di manutenzione e import. Nuova sezione *Prestiti, manutenzione e launcher* che rimanda a STATE_MACHINES (SM1, SM3, SM4, SM6, SM7). Regole corrette e nuove (sotto). *MVP Scope* marcato come storico. Visione invariata.
+  - `project-context.md`: solo la roadmap, marcata come superata.
+  - Commenti nel codice: `transactions.schema.ts` (il repository unisce `merchants` e `categories` in lettura) e `transaction.model.ts` ("immutabile" → dati bancari immutabili, tipo correggibile, cancellabile). I commenti di `merchants.schema.ts` e `loans.schema.ts` sono risultati veri e non sono stati toccati.
+  - Nuovo `docs/README.md`: ogni file di `docs/` classificato come attuale o storico.
+  - **Verifica riga per riga di AUDIT §13:**
+
+    | Affermazione (AUDIT §13) | Esito dopo B-03 |
+    |---|---|
+    | App locale, DB embedded | Invariata, vera |
+    | Codice per funzionalità | Invariata, vera |
+    | Ogni modulo ha `routes/ services/ …` | Corretta: file piatti con suffissi |
+    | Moduli: 5 | Corretta: 11 moduli più infrastruttura |
+    | Classificazione separata dall'import | Invariata (parzialmente vera, scelta corretta per l'atomicità); non riscritta, è visione |
+    | Statistiche sempre calcolate | Invariata, vera; rafforzata in *Persistence* (stato derivato) |
+    | Transazioni immutabili | Corretta: dati bancari immutabili, tipo correggibile salvo LO1/D9, cancellabili salvo prestiti |
+    | Dominio non dipende da Express | Invariata, vera |
+    | Dominio non dipende da SQLite | Dichiarata l'eccezione: `atomically` nei servizi |
+    | Feature comunicano via servizi pubblici | Corretta: servizi pubblici e porte; join in lettura ammessi; scritture cross-tabella solo nelle eccezioni elencate |
+    | Errori gestiti centralmente | Invariata, vera |
+    | Dominio non conosce il logging | Dichiarata l'eccezione: manutenzione e import |
+    | Ogni modifica passa dai repository | Dichiarate le eccezioni: reset e categorie |
+    | Esempi di API | Invariati; il README ora dichiara il prefisso `/api` |
+    | Fuori scope (auth, multi-conto, …) | Invariato, vero |
+    | Roadmap M1–M5 | Marcata come superata in `project-context.md` |
+    | WP1–WP9 nel README | Invariato, vero |
+    | DB in `apps/backend/data/appconto.db` | Corretto in B-02 |
+    | `npm install` poi `dev:frontend` | Corretto in B-02 (installazione del frontend) |
+    | `paths.ts` unico punto dei percorsi | Invariato, vero; ripetuto in `AGENTS.md` |
+    | `data-model.md`, `offline-first-portable.md`, report WP | Classificati in `docs/README.md` (data-model attuale non riverificato; gli altri storici) |
+    | `frontend-shared-components-proposal.md` | Classificato come storico |
+
+  - Nessuna regola target non implementata è descritta: LO1, D9 e I1 sono implementate (C-03, C-04).
 
 #### B-01 · `AGENTS.md` breve alla radice
 
@@ -719,6 +760,10 @@ Scala di effort: **XS** ≤ mezza giornata · **S** ½–1 giorno · **M** 2–3
   - DX positivo.
   - AX fortemente positivo.
 - **Risultato atteso:** sessioni di agenti più brevi e meno errori sugli invarianti.
+- **Stato: COMPLETED (2026-11-11).**
+  - **Intervento realizzato:** `AGENTS.md` di 86 righe: verifica (`npm run check` e durata, test singolo, frontend), sicurezza dell'archivio, dove intervenire, convenzioni (italiano, centesimi, errori e forma del corpo, porte), invarianti (scrittore unico, stato derivato, LO1/D9 con il contratto di `dependents`, I1, nuovo tipo di movimento, backup e restore), test, lavoro in corso. `CLAUDE.md` di una riga che rimanda ad `AGENTS.md`.
+  - **Criteri verificati:** ogni percorso citato esiste (controllo con `test -e` su 19 percorsi); le classi di errore citate esistono; nessun import da `features/` dentro `shared/` (regola citata); sotto 120 righe; nessun paragrafo copiato dal README (rimandi invece di duplicati).
+  - **Prova informale con un agente nuovo:** vedi `PROGRESS.md`.
 
 ### Fase 4 — UX dei workflow e contratti
 
@@ -1133,6 +1178,8 @@ Si eseguono solo quando si lavora già nell'area o quando una misura lo giustifi
 | E-06 | Scritture solo tramite il repository proprietario: `reassignMerchants` in `merchantsRepository`; reset tramite `settingsRepository` | Opzionale | P3 | S | B-03 | Quando si tocca categories o reset. Nessuna interfaccia o porta | Grep: nessuna scrittura su tabelle di altri moduli; suite verde |
 | E-07 | Lock anche nell'avvio diretto (`main.ts`, A8) più L2 (timeout di `ready`) e L3 (codice d'uscita per un figlio ucciso da segnale) | Opzionale | P3 | S | A-03 | Solo se sviluppo e pacchetto possono condividere la stessa `DATA_ROOT`; altrimenti basta la riga in `AGENTS.md` | `start:backend` con il pacchetto attivo sulla stessa `DATA_ROOT` fallisce con un errore esplicito |
 | G-03 | `scripts/verify-package.mjs` attende 22 categorie (righe 611, 713, 1404, 1511); dal commit `a0ac8f8` (2026-09-22, Regali e Rimborso) sono 24. Falliscono A/C/I, D, Q, R ed E/G/J (quest'ultima probabilmente a cascata, per un'istanza lasciata attiva da D) | Rinviabile | P2 | XS | — | Osservata il 2026-11-11 durante A-03. `verify:package` fa parte della checklist di rilascio: va corretta prima del prossimo rilascio. Non verificato sulla baseline | `npm run verify:package` 17/17 |
+| G-04 | `npm ci` alla radice fallisce su Windows senza Visual Studio: npm 11.6.2 lancia `node-gyp rebuild` per `better-sqlite3` nonostante `gypfile: false` e i binari in `prebuilds/`. Ripiego documentato nel README: `npm ci --ignore-scripts` | Rinviabile | P3 | S | — | Osservata il 2026-11-11 in B-02. Prima di A-05b (la CI su `windows-latest` potrebbe avere lo stesso problema, o avere Visual Studio) | `npm ci` riesce su un clone pulito, oppure la scelta di `--ignore-scripts` è motivata nel README e nella CI |
+| G-05 | `isolate-database.test.ts` ("rifiuta un percorso fuori dalla cartella temporanea") fallisce se il repository sta sotto `os.tmpdir()`: il percorso di prova `<appRoot>/altro.sqlite` risulta dentro la cartella temporanea | Opzionale | P3 | XS | — | Solo se capita davvero (cloni in `%TEMP%`, alcuni runner CI) | Il test usa un percorso sicuramente fuori dalla cartella temporanea |
 | F-01 | Codice morto: `installShutdownHandlers` e `shutdown` legacy (`shutdown.ts:196-240`), `affectsAccountBalance`, `transactionsService.listAll`, `merchantsService.listAll` | Opzionale | P3 | XS | — | Quando si tocca l'area | Grep vuoto, suite verde |
 | F-02 | Un helper per gli enum nei query param (`z.enum().safeParse`) e una sola `CLASSIFICATION_FILTERS` | Opzionale | P3 | S | — | Quando si tocca una query | Nessun `includes(x as T)` nei `*-query.ts` |
 | F-03 | Un solo `idParam(req)` nelle rotte | Opzionale | P3 | XS | — | — | 4 copie ridotte a 1 |
