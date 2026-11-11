@@ -471,3 +471,26 @@ describe('nessuna scrittura fuori dalla radice dati', () => {
     }
   });
 });
+
+describe('ritenzione con nomi protetti', () => {
+  it('un nome protetto sopravvive alla ritenzione della creazione, poi la ritenzione riprende', () => {
+    const protetto = backupService.create('pre-restore', new Date(2027, 1, 1, 9, 1, 0)).name;
+    for (const minuto of [2, 3]) {
+      backupService.create('pre-restore', new Date(2027, 1, 1, 9, minuto, 0));
+    }
+
+    backupService.create('pre-restore', new Date(2027, 1, 1, 9, 4, 0), [protetto]);
+
+    const preRestore = () =>
+      backupService
+        .list()
+        .filter((info) => info.kind === 'pre-restore')
+        .map((info) => info.name);
+    assert.equal(preRestore().length, 4);
+    assert.ok(preRestore().includes(protetto));
+
+    // Senza protezione la ritenzione torna a tre e il più vecchio esce.
+    assert.deepEqual(backupService.prune(), [protetto]);
+    assert.equal(preRestore().length, 3);
+  });
+});

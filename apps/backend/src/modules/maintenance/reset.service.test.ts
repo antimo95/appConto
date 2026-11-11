@@ -318,6 +318,23 @@ describe('quando NON si azzera', () => {
   });
 });
 
+describe('quando la ricompattazione fallisce', () => {
+  it('dopo lo svuotamento l-azzeramento risulta riuscito, con il suo backup', () => {
+    riempi();
+    assert.ok((contiAttuali().transactions ?? 0) > 0);
+
+    // Lo svuotamento è già committato quando VACUUM fallisce (per esempio con
+    // il disco pieno): l'esito deve dire ciò che è successo davvero.
+    const esito = resetService.run(new Date('2026-09-02T15:04:00'), () => {
+      throw new Error('database or disk is full');
+    });
+
+    assert.ok((esito.removed.transactions ?? 0) > 0);
+    assert.deepEqual(contiAttuali(), contiDiUnArchivioNuovo());
+    assert.ok(backupService.verify(esito.backupName).ok, 'il backup pre-reset va restituito');
+  });
+});
+
 describe('i nomi dei backup di azzeramento', () => {
   it('sono riconosciuti dalla convenzione', () => {
     // Il tipo è nuovo: se il riconoscitore dei nomi non lo includesse, i file

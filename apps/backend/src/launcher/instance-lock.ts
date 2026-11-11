@@ -1,5 +1,13 @@
-import { randomBytes } from 'node:crypto';
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash, randomBytes } from 'node:crypto';
+import {
+  closeSync,
+  fstatSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 import { CONTROL_PROTOCOL, isLiveInstance } from './control.js';
 
@@ -34,6 +42,26 @@ import { CONTROL_PROTOCOL, isLiveInstance } from './control.js';
  * Il `pid` è registrato per la diagnosi e **non** viene usato per decidere: i
  * numeri di processo vengono riciclati, e un lock tenuto in vita da un pid
  * riassegnato a un programma qualsiasi bloccherebbe l'applicazione per sempre.
+ *
+ * ## Come si prende un lock abbandonato
+ *
+ * Cancellare il lock giudicato morto non basta: due avvii che lo leggono
+ * insieme lo giudicano morto entrambi, e il secondo cancellerebbe il lock
+ * appena creato dal primo. Il furto passa quindi per una **rivendicazione**:
+ * il file `<lock>.steal-<impronta>`, creato con `wx`, dove l'impronta è lo
+ * sha256 dei byte e dell'identità del file (numero e istante di creazione)
+ * del lock giudicato morto. Per ogni istanza morta del lock la
+ * rivendicazione riesce a uno solo; chi la ottiene rilegge il lock e lo
+ * cancella solo se è ancora quello giudicato morto. La rivendicazione si
+ * rimuove dopo aver creato il proprio lock, così nessuno la ottiene mentre il
+ * nuovo lock non è ancora scritto per intero.
+ *
+ * L'impronta non usa il `token`: vale anche per un lock illeggibile, e non
+ * mette in un nome di file un valore letto da un file.
+ *
+ * Caso residuo, precedente a questa logica: un avvio che resta fermo più di
+ * `PARTIAL_WRITE_GRACE_MS` fra la creazione del lock e la sua scrittura viene
+ * giudicato morto, perché il file è davvero immutato.
  */
 
 /** Quanti tentativi di prendere un lock abbandonato prima di rinunciare. */
@@ -41,6 +69,9 @@ const MAX_STEAL_ATTEMPTS = 4;
 
 /** Per quanto si dà tempo a un lock illeggibile di essere finito di scrivere. */
 const PARTIAL_WRITE_GRACE_MS = 600;
+
+/** Quanto attende chi trova il furto già rivendicato da un altro avvio. */
+const CLAIM_BUSY_WAIT_MS = 200;
 
 export interface LockContent {
   readonly protocol: string;
@@ -139,6 +170,63 @@ export interface AcquireRequest {
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
+interface LockSnapshot {
+  readonly raw: Buffer;
+  /** Byte più identità del file: due lock diversi non hanno mai la stessa chiave. */
+  readonly key: string;
+}
+
+/**
+ * Il lock com'è adesso: `'missing'` se non c'è, `'busy'` se c'è ma non si legge
+ * (antivirus, indicizzatore, file in cancellazione).
+ *
+ * I soli byte non bastano a riconoscere un'istanza: ogni lock appena creato
+ * con `wx` e non ancora scritto è vuoto. Numero del file e istante di
+ * creazione, letti dallo stesso handle, distinguono il lock morto da uno nuovo
+ * con lo stesso contenuto.
+ */
+function snapshot(lockFile: string): LockSnapshot | 'missing' | 'busy' {
+  let fd: number;
+  try {
+    fd = openSync(lockFile, 'r');
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'ENOENT' ? 'missing' : 'busy';
+  }
+
+  try {
+    const raw = readFileSync(fd);
+    const { ino, birthtimeNs } = fstatSync(fd, { bigint: true });
+    const key = createHash('sha256')
+      .update(raw)
+      .update(`\0${String(ino)}:${String(birthtimeNs)}`)
+      .digest('hex');
+
+    return { raw, key };
+  } catch {
+    return 'busy';
+  } finally {
+    closeSync(fd);
+  }
+}
+
+const claimPath = (lockFile: string, key: string): string => `${lockFile}.steal-${key}`;
+
+/** La rivendicazione di furto per il lock attuale. Esportata per i test. */
+export function stealClaimFor(lockFile: string): string | null {
+  const seen = snapshot(lockFile);
+
+  return typeof seen === 'object' ? claimPath(lockFile, seen.key) : null;
+}
+
+/** Rimuove un file senza sollevare: se resta, il giro successivo se ne accorge. */
+function removeQuietly(file: string): void {
+  try {
+    rmSync(file, { force: true });
+  } catch {
+    // Antivirus o indicizzatore (EPERM/EBUSY su Windows): si riprova al giro dopo.
+  }
+}
+
 /**
  * Prende il lock, oppure dice chi ce l'ha.
  *
@@ -152,7 +240,22 @@ export async function acquireInstanceLock(request: AcquireRequest): Promise<Acqu
 
   mkdirSync(path.dirname(request.lockFile), { recursive: true });
 
+  /** La rivendicazione vinta da questo avvio: si rimuove dopo il `wx` del giro successivo. */
+  let claim: string | null = null;
+  const dropClaim = (): void => {
+    if (claim !== null) {
+      removeQuietly(claim);
+      claim = null;
+    }
+  };
+  /** La rivendicazione altrui che ha fermato l'ultimo tentativo, se c'è. */
+  let blockedBy: string | null = null;
+  /** L'EPERM dell'ultimo tentativo: se persiste non è transitorio, e va mostrato. */
+  let denied: unknown = null;
+
   for (let attempt = 0; attempt < MAX_STEAL_ATTEMPTS; attempt += 1) {
+    blockedBy = null;
+    denied = null;
     const content: LockContent = {
       protocol: CONTROL_PROTOCOL,
       pid: process.pid,
@@ -172,6 +275,7 @@ export async function acquireInstanceLock(request: AcquireRequest): Promise<Acqu
         // Il punto di mutua esclusione: `wx` riesce a un solo processo.
         flag: 'wx',
       });
+      dropClaim();
 
       let corrente = content;
 
@@ -192,9 +296,10 @@ export async function acquireInstanceLock(request: AcquireRequest): Promise<Acqu
             try {
               // Si rilascia solo il proprio lock. Se il file contiene un
               // altro token, qualcun altro lo ha già preso — cancellarlo
-              // significherebbe togliere il lock a lui.
+              // significherebbe togliere il lock a lui. Lo stesso vale per un
+              // file illeggibile: può essere il lock appena creato da un altro.
               const presente = parseLockContent(readFileSync(request.lockFile, 'utf8'));
-              if (presente === null || presente.token === content.token) {
+              if (presente !== null && presente.token === content.token) {
                 rmSync(request.lockFile, { force: true });
               }
             } catch {
@@ -204,20 +309,24 @@ export async function acquireInstanceLock(request: AcquireRequest): Promise<Acqu
         },
       };
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+      dropClaim();
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === 'EPERM') {
+        // Su Windows un file in cancellazione rifiuta l'apertura con EPERM.
+        denied = error;
+        await wait(CLAIM_BUSY_WAIT_MS);
+        continue;
+      }
+      if (code !== 'EEXIST') {
         throw error;
       }
     }
 
     // Il file esiste: c'è qualcuno, oppure c'era.
-    let presente: LockContent | null = null;
-    try {
-      presente = parseLockContent(readFileSync(request.lockFile, 'utf8'));
-    } catch {
-      presente = null;
-    }
+    let seen = snapshot(request.lockFile);
+    let presente = typeof seen === 'object' ? parseLockContent(seen.raw.toString('utf8')) : null;
 
-    if (presente === null) {
+    if (seen !== 'missing' && presente === null) {
       /*
        * Illeggibile. Due possibilità: spazzatura, o un lock appena creato e
        * non ancora scritto per intero — la creazione e la scrittura del
@@ -225,27 +334,69 @@ export async function acquireInstanceLock(request: AcquireRequest): Promise<Acqu
        * rilegge una volta: se è ancora illeggibile, è spazzatura.
        */
       await wait(PARTIAL_WRITE_GRACE_MS);
-      try {
-        presente = parseLockContent(readFileSync(request.lockFile, 'utf8'));
-      } catch {
-        presente = null;
-      }
+      seen = snapshot(request.lockFile);
+      presente = typeof seen === 'object' ? parseLockContent(seen.raw.toString('utf8')) : null;
+    }
+
+    if (typeof seen !== 'object') {
+      // Sparito nel frattempo, oppure ancora non leggibile: si riprova. Ciò
+      // che non si riesce a leggere non si ruba.
+      continue;
     }
 
     if (presente !== null && (await live(presente.controlPort, presente.dataRoot))) {
       return { acquired: false, running: presente };
     }
 
-    // Nessuno risponde: il lock è di un processo che non esiste più.
+    // Nessuno risponde: il lock è di un processo che non esiste più. Lo prende
+    // solo chi ne rivendica il furto, e solo se è ancora quello giudicato morto.
+    const dead = seen.key;
+    const steal = claimPath(request.lockFile, dead);
     try {
-      rmSync(request.lockFile, { force: true });
-    } catch {
-      // Se non si riesce a rimuoverlo, il prossimo tentativo lo rileggerà.
+      writeFileSync(steal, '', { flag: 'wx' });
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === 'EEXIST') {
+        // Un altro avvio lo sta prendendo: al prossimo giro si troverà il suo lock.
+        blockedBy = steal;
+      } else if (code === 'EPERM') {
+        // La rivendicazione di un altro avvio è in cancellazione (Windows).
+        denied = error;
+      } else {
+        throw error;
+      }
+
+      await wait(CLAIM_BUSY_WAIT_MS);
+      continue;
+    }
+
+    claim = steal;
+    const current = snapshot(request.lockFile);
+    if (typeof current === 'object' && current.key === dead) {
+      // Se la rimozione non riesce, il prossimo giro lo rileggerà.
+      removeQuietly(request.lockFile);
     }
   }
 
+  dropClaim();
+
+  if (denied !== null) {
+    throw denied;
+  }
+
+  if (blockedBy !== null) {
+    // shortcut: un avvio terminato fra la rivendicazione e la sostituzione del
+    // lock (o una rivendicazione che non si è riusciti a rimuovere) lascia
+    // entrambi i file, e nessuno prende più il lock da solo. Si chiede di
+    // rimuoverli a mano invece di farli scadere per età, che riaprirebbe la
+    // corsa. Rivedere se capita davvero (docs/rilascio.md).
+    throw new Error(
+      `L'archivio risulta bloccato da un avvio interrotto o da un file che non si è riusciti a rimuovere. Se MyFinance non è in esecuzione, elimina questi due file e riavvia: ${request.lockFile} e ${blockedBy}`,
+    );
+  }
+
   throw new Error(
-    `Impossibile stabilire chi stia usando l'archivio: ${request.lockFile} viene continuamente ricreato.`,
+    `Impossibile stabilire chi stia usando l'archivio: ${request.lockFile} cambia di continuo o non si riesce a leggere.`,
   );
 }
 

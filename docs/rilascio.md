@@ -216,6 +216,22 @@ Se non chiudi l'applicazione prima di sostituire i file, Windows rifiuterà di
 sovrascrivere `node.exe` perché è in esecuzione. È l'unico sintomo, ed è
 benigno: chiudi e riprova.
 
+### Se l'avvio dice "L'archivio risulta bloccato da un avvio interrotto…"
+
+Un avvio è stato terminato nell'istante in cui stava prendendo il posto di
+un'istanza chiusa male, oppure un file non si è lasciato rimuovere (per
+esempio trattenuto da un antivirus). Restano due file in `data\`:
+`instance.lock` e `instance.lock.steal-<impronta>`. Il messaggio li nomina
+entrambi.
+
+1. controlla che MyFinance non sia in esecuzione (nessuna finestra, nessun
+   `node.exe` di `runtime\` in Gestione attività);
+2. elimina i due file indicati;
+3. riavvia.
+
+Nessun automatismo li rimuove da solo: farli scadere dopo un certo tempo
+riaprirebbe la possibilità che due avvii prendano insieme lo stesso archivio.
+
 ### Cosa NON consegnare
 
 - `dist-package\verify-report.json` — è il verbale delle prove, non serve a chi
