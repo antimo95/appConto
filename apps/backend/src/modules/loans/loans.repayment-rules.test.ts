@@ -184,11 +184,11 @@ describe('D9: un movimento collegato a una restituzione non esce da INCOME', () 
     assert.equal(transactionsService.updateType(id, 'INCOME', dependents).type, 'INCOME');
   });
 
-  it('il movimento d\'origine di un prestito non è vincolato da questa regola', () => {
+  it('il movimento d\'origine di un prestito resta un prestito (LO1, vedi loans.type-lock.test.ts)', () => {
     const id = transactionId('ORIGINE GENERALE');
 
-    assert.equal(transactionsService.updateType(id, 'EXPENSE', dependents).type, 'EXPENSE');
-    transactionsService.updateType(id, 'LOAN', dependents);
+    expectError('CONFLICT', () => transactionsService.updateType(id, 'EXPENSE', dependents), /Marco/);
+    assert.equal(transactionsService.findById(id)?.type, 'LOAN');
   });
 
   it('tornato scollegato, il movimento si riclassifica di nuovo', () => {

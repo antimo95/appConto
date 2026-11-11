@@ -4,7 +4,12 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, describe, it } from 'node:test';
 import { CONTROL_PROTOCOL, startControlServer, type ControlChannel } from './control.js';
-import { acquireInstanceLock, parseLockContent, readInstanceLock } from './instance-lock.js';
+import {
+  acquireInstanceLock,
+  parseLockContent,
+  readInstanceLock,
+  stealClaimFor,
+} from './instance-lock.js';
 
 /**
  * Istanza unica per archivio.
@@ -395,6 +400,161 @@ describe('interpretazione del contenuto', () => {
 
   it('un file che non esiste non è un lock', () => {
     assert.equal(readInstanceLock(path.join(radice('vuota'), 'instance.lock')), null);
+  });
+});
+
+/*
+ * A-03. Due avvii che giudicano morto lo stesso lock non possono prenderlo
+ * entrambi: il furto passa per una rivendicazione `wx` legata a quella
+ * specifica istanza del lock, e chi la vince ricontrolla il contenuto prima di
+ * cancellare. Le porte qui sono finte: la liveness la decide l'hook `live`.
+ */
+describe('furto di un lock abbandonato da parte di avvii concorrenti', () => {
+  const PORTA_MORTA = 1;
+
+  /** Scrive il lock di un processo morto. */
+  function lockMorto(dati: string): void {
+    const byte = JSON.stringify({
+      protocol: CONTROL_PROTOCOL,
+      pid: 999_999,
+      startedAt: '2026-09-01T10:00:00.000Z',
+      appRoot: 'C:\\app',
+      dataRoot: dati,
+      controlPort: PORTA_MORTA,
+      token: 'token-del-processo-morto',
+      serverPort: null,
+    });
+    writeFileSync(lockDi(dati), byte, 'utf8');
+  }
+
+  function avvio(
+    dati: string,
+    porta: number,
+    live: (port: number) => Promise<boolean>,
+  ): ReturnType<typeof acquireInstanceLock> {
+    return acquireInstanceLock({
+      lockFile: lockDi(dati),
+      dataRoot: dati,
+      appRoot: 'C:\\app',
+      controlPort: porta,
+      now: () => new Date(),
+      live,
+      wait: () => Promise.resolve(),
+    });
+  }
+
+  it('chi arriva secondo non cancella il lock appena preso dal primo', async () => {
+    const dati = radice('l1');
+    lockMorto(dati);
+
+    // A e B hanno il canale di controllo in ascolto, come nel launcher reale.
+    const vivo = (port: number): Promise<boolean> => Promise.resolve(port === 2001 || port === 2002);
+
+    // B legge il lock morto; mentre ne verifica la liveness, A fa un'acquisizione completa.
+    let esitoA: Awaited<ReturnType<typeof acquireInstanceLock>> | undefined;
+    const esitoB = await avvio(dati, 2002, async (port) => {
+      esitoA ??= await avvio(dati, 2001, vivo);
+
+      return vivo(port);
+    });
+
+    assert.equal(esitoA?.acquired, true, 'A prende il lock abbandonato');
+    assert.equal(esitoB.acquired, false, 'B deve trovare A, non togliergli il lock');
+    assert.equal(readLock(lockDi(dati)).controlPort, 2001);
+
+    // Il rilascio di A rimuove il suo lock: nessuno glielo ha sostituito.
+    if (esitoA?.acquired) {
+      esitoA.lock.release();
+    }
+    assert.ok(!existsSync(lockDi(dati)));
+  });
+
+  it('una rivendicazione orfana di un altro lock non impedisce il furto', async () => {
+    const dati = radice('l2');
+    lockMorto(dati);
+    writeFileSync(`${lockDi(dati)}.steal-${'0'.repeat(64)}`, '', 'utf8');
+
+    const esito = await avvio(dati, 2001, (port) => Promise.resolve(port === 2001));
+
+    assert.equal(esito.acquired, true);
+    assert.equal(readLock(lockDi(dati)).controlPort, 2001);
+  });
+
+  it('una rivendicazione rimasta per il lock morto attuale produce un errore che nomina i due file', async () => {
+    const dati = radice('l3');
+    lockMorto(dati);
+    const rivendicazione = stealClaimFor(lockDi(dati));
+    assert.ok(rivendicazione !== null);
+    // Il residuo di un vincitore terminato fra rivendicazione e sostituzione.
+    writeFileSync(rivendicazione, '', 'utf8');
+
+    await assert.rejects(
+      avvio(dati, 2001, () => Promise.resolve(false)),
+      (error: unknown) => {
+        assert.ok(error instanceof Error);
+        assert.ok(error.message.includes(lockDi(dati)), error.message);
+        assert.ok(error.message.includes(rivendicazione), error.message);
+
+        return true;
+      },
+    );
+    // Nessun file rimosso d'ufficio: la decisione resta a chi legge l'errore.
+    assert.ok(existsSync(lockDi(dati)));
+    assert.ok(existsSync(rivendicazione));
+  });
+
+  it('due lock vuoti successivi non hanno la stessa rivendicazione', () => {
+    // Ogni lock appena creato con `wx` è vuoto: i soli byte non bastano a
+    // distinguere il lock morto da quello appena creato da un altro avvio.
+    const dati = radice('l6');
+    writeFileSync(lockDi(dati), '', 'utf8');
+    const primo = stealClaimFor(lockDi(dati));
+    rmSync(lockDi(dati));
+    writeFileSync(lockDi(dati), '', 'utf8');
+
+    assert.ok(primo !== null);
+    assert.notEqual(stealClaimFor(lockDi(dati)), primo);
+  });
+
+  it('un lock vuoto lasciato da un avvio interrotto viene preso', async () => {
+    const dati = radice('l7');
+    writeFileSync(lockDi(dati), '', 'utf8');
+
+    const esito = await avvio(dati, 2001, (port) => Promise.resolve(port === 2001));
+
+    assert.equal(esito.acquired, true);
+    assert.equal(readLock(lockDi(dati)).controlPort, 2001);
+  });
+
+  it('il rilascio non cancella un file illeggibile: può essere il lock di un altro', async () => {
+    const dati = radice('l8');
+    const esito = await avvio(dati, 2001, () => Promise.resolve(false));
+    assert.ok(esito.acquired);
+
+    // Il lock è stato preso da un altro avvio, che lo ha appena creato vuoto.
+    rmSync(lockDi(dati));
+    writeFileSync(lockDi(dati), '', 'utf8');
+    esito.lock.release();
+
+    assert.ok(existsSync(lockDi(dati)));
+  });
+
+  it('fra molti avvii concorrenti su un lock abbandonato uno solo lo prende', async () => {
+    const porte = [3001, 3002, 3003, 3004, 3005];
+    const vivo = (port: number): Promise<boolean> => Promise.resolve(porte.includes(port));
+
+    for (let ripetizione = 0; ripetizione < 50; ripetizione += 1) {
+      const dati = radice(`l5-${String(ripetizione)}`);
+      lockMorto(dati);
+
+      const esiti = await Promise.all(porte.map((porta) => avvio(dati, porta, vivo)));
+      const vincitori = esiti.filter((esito) => esito.acquired);
+
+      assert.equal(vincitori.length, 1, `ripetizione ${String(ripetizione)}`);
+      const vincitore = vincitori[0];
+      assert.ok(vincitore?.acquired);
+      assert.equal(readLock(lockDi(dati)).token, vincitore.lock.content.token);
+    }
   });
 });
 

@@ -140,6 +140,8 @@ export interface LoanLink {
   transactionId: string;
   loanId: string;
   role: LoanLinkRole;
+  /** Il tipo che il movimento deve avere finché il legame esiste (LO1, D9). */
+  requiredType: TransactionType;
   borrowerName: string;
   /** Importo del prestito: sommando quelli di un movimento si sa quanto ne resta. */
   amount: number;

@@ -195,8 +195,12 @@ export const backupService = {
    *
    * `moment` è un parametro perché il nome dipende dall'orologio, e un test
    * deve poter creare backup di giorni diversi senza aspettare.
+   *
+   * `protect` sono nomi che la ritenzione di questa creazione non elimina:
+   * il ripristino vi passa il backup scelto, che altrimenti potrebbe uscire
+   * dalla finestra dei pre-restore proprio mentre lo si sta usando.
    */
-  create(kind: BackupKind, moment: Date = new Date()): BackupInfo {
+  create(kind: BackupKind, moment: Date = new Date(), protect: readonly string[] = []): BackupInfo {
     ensureDataDirectories();
     sweepPartials();
 
@@ -300,7 +304,7 @@ export const backupService = {
       righe: manifest.rowCounts,
     });
 
-    backupService.prune();
+    backupService.prune(protect);
 
     return {
       name,
@@ -474,14 +478,14 @@ export const backupService = {
    * `.partial` non è mai un candidato all'eliminazione perché non è mai un
    * backup — la convenzione sui nomi lo esclude prima della politica.
    */
-  prune(): string[] {
+  prune(protect: readonly string[] = []): string[] {
     ensureDataDirectories();
 
     const names = readdirSync(config.backupsDir);
     const databases = names.filter((name) => parseBackupName(name) !== null);
     const removed: string[] = [];
 
-    for (const name of backupsToPrune(databases)) {
+    for (const name of backupsToPrune(databases).filter((name) => !protect.includes(name))) {
       rmSync(path.join(config.backupsDir, name), { force: true });
       rmSync(manifestPath(name), { force: true });
       removed.push(name);

@@ -87,7 +87,9 @@ export const restoreService = {
     //    sostituzione. Se questo passo non riesce, il ripristino non comincia.
     let preRestoreBackup: string;
     try {
-      preRestoreBackup = backupService.create('pre-restore', moment).name;
+      // Il backup scelto è protetto: può essere il pre-restore più vecchio, e
+      // la ritenzione di questa creazione lo eliminerebbe.
+      preRestoreBackup = backupService.create('pre-restore', moment, [name]).name;
     } catch (error) {
       const detail = error instanceof BackupFailedError ? error.message : 'errore sconosciuto';
       logger.error('Ripristino non preparato: backup dell\'archivio corrente non riuscito', {
@@ -100,6 +102,10 @@ export const restoreService = {
     }
 
     // 4. Il candidato viene copiato, non spostato: il backup deve restare dov'è.
+    //    Un ripristino preparato in precedenza smette di valere qui, e non
+    //    prima: fino a questo punto un rifiuto lo lascia intatto; da qui in
+    //    poi un fallimento lascerebbe il marcatore senza il suo candidato.
+    clearPendingRestore(config.dataRoot);
     const candidate = path.join(config.tmpDir, CANDIDATE_FILE);
     rmSync(candidate, { force: true });
     copyFileSync(check.file, candidate);

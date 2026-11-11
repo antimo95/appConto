@@ -28,6 +28,7 @@ const link = (amount: number): LoanLink => ({
   transactionId: 't-1',
   loanId: 'l-1',
   role: 'ORIGIN',
+  requiredType: 'LOAN',
   borrowerName: 'Mamma',
   amount,
   remainingAmount: amount,

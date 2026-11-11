@@ -196,41 +196,52 @@ Il dominio non deve conoscere queste implementazioni.
 
 # Feature Modules
 
-La struttura del backend è organizzata per domini.
+La struttura del backend è organizzata per domini, in `apps/backend/src/modules/`.
+Gli undici moduli, allineati al codice nel novembre 2026:
 
-```
-src/
+| Modulo | Responsabilità |
+|---|---|
+| `import` | Analisi e importazione dei CSV: riconoscimento delle colonne, parsing, fingerprint, deduplicazione, import atomico |
+| `transactions` | I movimenti: ricerca, correzione del tipo, cancellazione |
+| `merchants` | Gli esercenti, creati una sola volta per nome normalizzato; rinomina e categoria |
+| `categories` | Le categorie, gestite a runtime; la categoria di riserva è protetta |
+| `loans` | Prestiti e restituzioni; credito residuo e stato sono derivati |
+| `settings` | Saldo di partenza e sua data |
+| `summary` | Riepilogo del mese |
+| `dashboard` | Vista aggregata della home |
+| `analytics` | Analisi di un periodo, con andamento nel tempo |
+| `cash-flow` | Liquidità: saldo di partenza, movimenti netti, correzione dei prestiti |
+| `maintenance` | Backup, ripristino differito, azzeramento, backup automatici |
 
-modules/
+Fuori da `modules/`: `db/` (connessione, migrazioni sicure, `atomically`),
+`shared/` (errori, logger, HTTP), `launcher/` (avvio del package, istanza
+unica), `paths.ts` (l'unico punto che decide dove vivono i dati), `app.ts`
+(composizione delle rotte e delle dipendenze fra moduli).
 
-    import/
+Ogni modulo è un insieme di **file piatti con suffissi**, non di sottocartelle:
+`<modulo>.routes.ts`, `.service.ts`, `.repository.ts`, `.schema.ts`, modelli,
+DTO e view model, più i test accanto (`*.test.ts`) e un `index.ts` che espone
+ciò che gli altri moduli possono usare.
 
-    transactions/
+## Dipendenze reali
 
-    merchants/
+- **Nucleo ledger.** `transactions`, `merchants` e `categories` si importano a
+  vicenda (servizi, DTO, schema per i vincoli di integrità): sono un unico
+  cluster, e una modifica a uno di essi va verificata sugli altri due.
+- **Read model trasversali.** `summary`, `dashboard`, `analytics` e `cash-flow`
+  leggono da più moduli (transazioni, prestiti, merchant, categorie,
+  impostazioni). È voluto: sono proiezioni.
+- **Vincoli fra moduli tramite porte.** `transactions` non importa `loans`:
+  riceve da `app.ts` una `TransactionDependents` (`usagesOf`) che `loans`
+  implementa. È così che un movimento collegato a un prestito non si cancella e
+  non cambia tipo. È il modello da seguire per nuovi vincoli.
+- **Eccezioni note.** `categories.repository.ts` aggiorna `merchants` (togliendo
+  una categoria eliminata); `reset.service.ts` svuota le tabelle e reinserisce
+  `settings` con SQL diretto; `db/client.ts` importa
+  `maintenance/restore-pending.ts` per applicare un ripristino all'apertura.
 
-    categories/
-
-    analytics/
-```
-
-Ogni modulo contiene:
-
-```
-feature/
-
-    routes/
-
-    services/
-
-    repositories/
-
-    models/
-
-    dto/
-```
-
-La feature è completamente autosufficiente.
+La mappa completa delle dipendenze è in
+[architecture-audit/AUDIT.md §3.1](../architecture-audit/AUDIT.md).
 
 ---
 
@@ -351,9 +362,16 @@ Questo evita inconsistenze tra dati e statistiche.
 
 SQLite rappresenta l'unica fonte di verità.
 
-Ogni modifica passa attraverso i repository.
+Ogni modifica passa attraverso i repository, con le eccezioni elencate in
+*Dipendenze reali* (azzeramento e categorie).
 
-Il dominio non accede direttamente al database.
+Il dominio non accede direttamente al database. I join in lettura fra tabelle
+di moduli diversi sono ammessi nei repository: è un solo file SQLite.
+
+Il database è a **scrittore unico**: `better-sqlite3` è sincrono, gli handler
+non contengono `await` fra un controllo e la scrittura che ne dipende, e un
+solo processo per archivio può aprire il database (lock d'istanza del
+launcher). Il denaro è memorizzato in **centesimi interi**.
 
 ---
 
@@ -403,7 +421,28 @@ Ad esempio:
 - errori
 - parsing falliti
 
-Le operazioni di dominio non devono conoscere il sistema di logging.
+Le operazioni di dominio non devono conoscere il sistema di logging. Fanno
+eccezione, consapevolmente, i servizi di manutenzione e di import, che
+registrano direttamente le operazioni sull'archivio.
+
+---
+
+# Prestiti, manutenzione e launcher
+
+Tre aree con un ciclo di vita proprio, descritte in dettaglio in
+[architecture-audit/STATE_MACHINES.md](../architecture-audit/STATE_MACHINES.md).
+
+- **Prestiti** (SM4). Un prestito nasce da un movimento di tipo `LOAN` e può
+  coprirne solo una parte; un movimento può originare più prestiti. Credito
+  residuo e stato derivano dalle restituzioni e non sono memorizzati. Una
+  restituzione bancaria si collega a un movimento `INCOME`.
+- **Manutenzione** (SM1, SM6, SM7). Backup verificati (manifest, integrità,
+  impronta) con ritenzione per tipo; ripristino **differito**: si prepara mentre
+  l'app è in funzione e si applica al riavvio, prima di aprire il database;
+  azzeramento preceduto da un backup `pre-reset`.
+- **Launcher** (SM3). Avvia il server del package e garantisce un solo processo
+  per archivio con un lock dentro `DATA_ROOT`; il lock di un processo morto si
+  prende con una rivendicazione atomica.
 
 ---
 
@@ -441,7 +480,11 @@ Mai memorizzate.
 
 ---
 
-## Le transazioni importate sono immutabili.
+## I dati bancari di una transazione importata sono immutabili.
+
+Data, descrizione e importo restano quelli della banca. Il `type` è
+correggibile, salvo i vincoli dei prestiti (sotto). I movimenti si possono
+cancellare, salvo quelli collegati a un prestito.
 
 ---
 
@@ -451,15 +494,42 @@ Mai memorizzate.
 
 ## Il dominio non dipende da SQLite.
 
+Le funzioni di calcolo sono pure. I servizi usano `atomically` per le
+transazioni: è la dipendenza ammessa.
+
 ---
 
-## Le feature comunicano attraverso servizi pubblici.
+## Le feature comunicano attraverso servizi pubblici e porte.
 
-Mai accedendo direttamente alle implementazioni interne.
+Si importa da un altro modulo il suo `index.ts` o il suo servizio. I join in
+lettura e l'import degli schema per i vincoli di integrità sono ammessi; le
+scritture su tabelle di altri moduli no, salvo le eccezioni elencate in
+*Dipendenze reali*. Un vincolo che una feature impone a un'altra passa per una
+porta iniettata in `app.ts` (`TransactionDependents`).
+
+---
+
+## Il tipo di un movimento collegato a un prestito non cambia.
+
+LO1: un movimento d'origine di prestiti resta `LOAN` finché esiste almeno uno
+di quei prestiti, aperto o restituito. D9: un movimento collegato a una
+restituzione resta `INCOME`. Il backend lo garantisce con `requiredType` sui
+legami e una risposta 409; il frontend legge `requiredType` e non ripete la
+regola.
+
+---
+
+## Un movimento cancellato torna se si reimporta lo stesso estratto.
+
+I1: l'import deduplica solo rispetto ai movimenti presenti, e la cancellazione
+non lascia traccia. La conferma di cancellazione lo dice all'utente.
 
 ---
 
 # MVP Scope
+
+*Sezione storica: descrive la prima versione. Lo stato attuale delle
+funzionalità è nel [README](../../README.md).*
 
 La prima versione implementa solamente:
 

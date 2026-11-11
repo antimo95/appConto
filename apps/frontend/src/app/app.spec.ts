@@ -1,14 +1,27 @@
-import { provideHttpClient } from '@angular/common/http';
+import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { App } from './app';
 import { routes } from './app.routes';
 
+@Component({ template: '' })
+class EmptyPage {}
+
+/*
+ * Percorsi e titoli reali di `app.routes.ts`, ma pagine vuote: questa spec
+ * verifica la shell, non le pagine. Le pagine vere, montate navigando,
+ * farebbero richieste HTTP che in jsdom falliscono come errori non gestiti
+ * (e con un backend finto `whenStable()` attenderebbe risposte mai date).
+ */
+const shellRoutes = routes.map((route) =>
+  route.component ? { ...route, component: EmptyPage } : route
+);
+
 describe('App', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [App],
-      providers: [provideRouter(routes), provideHttpClient()],
+      providers: [provideRouter(shellRoutes)],
     }).compileComponents();
   });
 

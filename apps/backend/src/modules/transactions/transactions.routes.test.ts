@@ -214,4 +214,26 @@ describe('GET e PATCH su un movimento inesistente o malformato', () => {
       notFound: ['fantasma-1', 'fantasma-2'],
     });
   });
+
+  it('PATCH del tipo su un movimento d-origine di un prestito risponde 409 (LO1)', async () => {
+    importService.importCsv(
+      ['Data contabile,Descrizione,Importo', '02/06/2026,PRESTITO A NADIA,-80.00'].join('\n'),
+    );
+    const origine = transactionsService.listAll().find((t) => t.description === 'PRESTITO A NADIA');
+    assert.ok(origine !== undefined);
+    transactionsService.updateType(origine.id, 'LOAN');
+    loansService.create({
+      transactionId: origine.id,
+      borrowerName: 'Nadia',
+      amount: 80,
+      lentAt: '2026-06-02',
+    });
+
+    const esito = await chiama(`/api/transactions/${origine.id}/type`, 'PATCH', { type: 'EXPENSE' });
+
+    // La rotta passa sempre `dependents`: senza, la regola non varrebbe.
+    assert.equal(esito.status, 409);
+    assert.match(JSON.stringify(esito.body), /prestito a Nadia/);
+    assert.equal(transactionsService.findById(origine.id)?.type, 'LOAN');
+  });
 });

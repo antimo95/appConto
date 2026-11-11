@@ -88,9 +88,10 @@ export const resetService = {
    * Azzera l'archivio e restituisce il conto di ciò che è stato eliminato.
    *
    * `moment` è un parametro perché il nome del backup dipende dall'orologio, e
-   * un test deve poterlo fissare.
+   * un test deve poterlo fissare. `compact` è un parametro per lo stesso
+   * motivo: un VACUUM che fallisce non si provoca a comando.
    */
-  run(moment: Date = new Date()): ResetOutcome {
+  run(moment: Date = new Date(), compact: () => void = vacuum): ResetOutcome {
     /*
      * Un ripristino in attesa vincerebbe su questo azzeramento.
      *
@@ -182,8 +183,20 @@ export const resetService = {
      * Senza questo passaggio il database resterebbe della dimensione di prima,
      * con dentro lo spazio delle righe cancellate: «da zero» sarebbe vero nei
      * dati e falso sul disco.
+     *
+     * Ma è un'ottimizzazione: lo svuotamento è già committato. Se fallisce,
+     * l'azzeramento è comunque avvenuto e l'esito deve dirlo, con il nome del
+     * backup da cui tornare indietro; altrimenti chi riprova crea un secondo
+     * backup di un archivio già vuoto.
      */
-    vacuum();
+    try {
+      compact();
+    } catch (error) {
+      logger.error('Archivio azzerato, ma la ricompattazione non è riuscita: lo spazio su disco non è stato recuperato', {
+        backup: backupName,
+        errore: error instanceof Error ? error.message : 'errore sconosciuto',
+      });
+    }
 
     /*
      * In modalità WAL il `VACUUM` scrive il file ricompattato nel `-wal`, e il
