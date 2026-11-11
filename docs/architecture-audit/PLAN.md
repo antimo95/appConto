@@ -179,7 +179,7 @@ Legenda: NOT STARTED · IN PROGRESS · COMPLETED · PARTIALLY COMPLETED · BLOCK
 | F-05 | DEFERRED (fuori perimetro) | — | §10 |
 | G-01, G-02 | NOT STARTED | — | Rinviabili (§9) |
 
-Al 2026-11-11 sono COMPLETED A-04, A-05a, A-02, A-03 e C-06 (fase 1 chiusa, salvo A-05b BLOCKED) e la fase 2 (C-03, C-04) (evidenze nelle schede e in `PROGRESS.md`). Nessuna attività è IN PROGRESS. Le modifiche non sono ancora committate: HEAD resta `f072a59`.
+Al 2026-11-11 sono COMPLETED A-04, A-05a, A-02, A-03 e C-06 (fase 1, unita in `master` con la PR #12, salvo A-05b BLOCKED) e C-03, C-04 (fase 2, branch `consolidamento/fase-2`). Evidenze nelle schede e in `PROGRESS.md`. Nessuna attività è IN PROGRESS.
 
 ---
 
