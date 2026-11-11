@@ -81,6 +81,9 @@ describe('PayslipComparisonView', () => {
     expect(rows[1]).toContain('—');
     expect(rows[2]).toContain('Scomparsa');
     expect(rows[2]).toContain('Trattenuta');
+    // Una voce scomparsa è una variazione negativa, con il meno tipografico.
+    expect(rows[2]).toContain('−30,00');
+    expect(rows[2]).not.toContain('+30,00');
     expect(host.textContent).not.toContain('Voce identica');
   });
 

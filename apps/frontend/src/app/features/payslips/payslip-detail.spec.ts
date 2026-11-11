@@ -30,6 +30,14 @@ const detail = (overrides: Partial<PayslipDetail> = {}): PayslipDetail => ({
   ...overrides
 });
 
+/** Il valore di una riga dei metadati, con il testo esatto della cella. */
+const metaValue = (host: HTMLElement, label: string): string =>
+  [...host.querySelectorAll('dl.meta div')]
+    .find((row) => row.querySelector('dt')?.textContent?.trim() === label)!
+    .querySelector('dd')!
+    .textContent!.replace(/\s+/g, ' ')
+    .trim();
+
 describe('PayslipDetailView', () => {
   const render = async (data: PayslipDetail): Promise<HTMLElement> => {
     const fixture = TestBed.createComponent(PayslipDetailView);
@@ -42,16 +50,17 @@ describe('PayslipDetailView', () => {
 
   it('mostra i metadati del cedolino', async () => {
     const host = await render(detail());
-    const meta = host.querySelector('dl.meta')!.textContent ?? '';
 
-    expect(meta).toContain('settembre 2026');
-    expect(meta).toContain('Acme Srl');
-    expect(meta).toContain('settembre.pdf');
-    expect(meta).toContain('zucchetti');
-    expect(meta).toContain('168');
-    expect(meta).toContain('2500,00');
-    expect(meta).toContain('500,00');
-    expect(meta).toContain('2000,00');
+    expect(metaValue(host, 'Mese')).toBe('settembre 2026');
+    expect(metaValue(host, 'Datore di lavoro')).toBe('Acme Srl');
+    expect(metaValue(host, 'File')).toBe('settembre.pdf');
+    expect(metaValue(host, 'Lettore')).toBe('zucchetti');
+    expect(metaValue(host, 'Ore lavorate')).toBe('168');
+    // Ogni importo nella sua cella: «500,00» da solo si troverebbe anche dentro «2500,00».
+    expect(metaValue(host, 'Totale competenze')).toContain('2500,00');
+    expect(metaValue(host, 'Totale trattenute')).toContain('500,00');
+    expect(metaValue(host, 'Totale trattenute')).not.toContain('2500,00');
+    expect(metaValue(host, 'Netto')).toContain('2000,00');
   });
 
   it('con busy Modifica ed Elimina sono disabilitati', async () => {
@@ -67,17 +76,11 @@ describe('PayslipDetailView', () => {
 
   it('i valori assenti compaiono come trattino', async () => {
     const host = await render(detail({ employer: null, workedHours: null }));
-    const meta = host.querySelector('dl.meta')!;
-    const value = (label: string): string =>
-      [...meta.querySelectorAll('div')]
-        .find((row) => row.querySelector('dt')?.textContent?.trim() === label)!
-        .querySelector('dd')!
-        .textContent!.trim();
 
-    expect(value('Datore di lavoro')).toBe('—');
-    expect(value('Ore lavorate')).toBe('—');
-    expect(value('Arrotondamento')).toBe('—');
-    expect(value('Imponibile IRPEF')).toBe('—');
+    expect(metaValue(host, 'Datore di lavoro')).toBe('—');
+    expect(metaValue(host, 'Ore lavorate')).toBe('—');
+    expect(metaValue(host, 'Arrotondamento')).toBe('—');
+    expect(metaValue(host, 'Imponibile IRPEF')).toBe('—');
   });
 
   it("elenca tutte le voci con l'etichetta della sezione", async () => {

@@ -1,55 +1,16 @@
 import { TestBed } from '@angular/core/testing';
 import { PayslipLeaveOverview } from './payslip-leave-overview';
+import {
+  LeaveCheck as Check,
+  LeaveObservation as Observation,
+  LeaveOverview as Overview,
+  LeaveTypeOverview as TypeOverview
+} from './payslip.model';
 
 /*
  * Contratto: docs/superpowers/specs/2026-11-04-cedolini-selezione-e-riepilogo-ferie.md
- * (sezione B e «Moduli»). I tipi sono dichiarati qui in piccolo: il file del
- * modello non li ha ancora, e il test non deve dipendere da come verranno
- * esportati. Solo dati sintetici.
+ * (sezione B e «Moduli»). Solo dati sintetici.
  */
-
-type Status = 'coerente' | 'anomalia' | 'non_verificabile';
-
-interface Observation {
-  period: string;
-  payslipId: string;
-  accrued: number;
-  used: number;
-  remaining: number;
-  unit: string;
-}
-
-interface Check {
-  type: 'FERIE' | 'PAR';
-  period: string;
-  payslipId: string;
-  previousPeriod: string | null;
-  previousPayslipId: string | null;
-  rule: 'primo-cedolino' | 'stesso-anno' | 'cambio-anno' | 'nessuna';
-  status: Status;
-  expectedRemaining: number | null;
-  observedRemaining: number | null;
-  difference: number | null;
-  reason: string;
-}
-
-interface TypeOverview {
-  type: 'FERIE' | 'PAR';
-  unit: string | null;
-  latest: Observation | null;
-  yearTotals: { year: string; period: string; payslipId: string; accrued: number; used: number }[];
-  history: Observation[];
-  status: Status;
-  checks: Check[];
-}
-
-interface Overview {
-  semantics: 'progressivo-annuo';
-  coverage: { from: string | null; to: string | null; payslipCount: number; missingPeriods: string[] };
-  types: TypeOverview[];
-  anomalies: Check[];
-  limitations: string[];
-}
 
 const IDS: Record<string, string> = { '2026-08': 'p-2', '2026-09': 'p-3', '2026-10': 'p-1' };
 
@@ -190,7 +151,10 @@ describe('PayslipLeaveOverview', () => {
     return fixture.nativeElement as HTMLElement;
   };
 
-  const text = (host: HTMLElement): string => (host.textContent ?? '').replace(/\s+/g, ' ');
+  const text = (host: Element): string => (host.textContent ?? '').replace(/\s+/g, ' ').trim();
+  /** Gli stati dei tipi, nell'ordine Ferie, P.A.R.: l'intestazione di ogni blocco. */
+  const badges = (host: HTMLElement): string[] =>
+    [...host.querySelectorAll('.type-header app-badge')].map((badge) => text(badge));
   const buttons = (host: HTMLElement): HTMLButtonElement[] => [...host.querySelectorAll('button')];
   const findButton = (host: HTMLElement, label: string): HTMLButtonElement | undefined =>
     buttons(host).find((button) => button.textContent?.trim() === label);
@@ -199,57 +163,52 @@ describe('PayslipLeaveOverview', () => {
 
   it('mostra il periodo coperto, il numero di cedolini e nessun mese mancante', async () => {
     const host = await render(coherent());
-    const content = text(host);
+    const coverage = text(host.querySelector('.coverage')!);
 
-    expect(content).toContain('agosto 2026');
-    expect(content).toContain('ottobre 2026');
-    expect(content).toMatch(/\b3\b/);
-    expect(content).toMatch(/cedolin/i);
+    expect(coverage).toBe('Periodo coperto: agosto 2026 – ottobre 2026 · 3 cedolini nel periodo');
+    expect(host.querySelector('.missing')).toBeNull();
   });
 
   it('con un solo cedolino scrive «1 cedolino», al singolare', async () => {
     const data = coherent();
     data.coverage = { from: '2026-10', to: '2026-10', payslipCount: 1, missingPeriods: [] };
-    const content = text(await render(data));
+    const coverage = text((await render(data)).querySelector('.coverage')!);
 
-    expect(content).toContain('1 cedolino nel periodo');
-    expect(content).not.toContain('1 cedolini');
+    expect(coverage).toContain('1 cedolino nel periodo');
+    expect(coverage).not.toContain('1 cedolini');
   });
 
   it('elenca i mesi mancanti fra il primo e l\'ultimo cedolino', async () => {
     const data = coherent();
     data.coverage = { from: '2026-07', to: '2026-10', payslipCount: 3, missingPeriods: ['2026-08'] };
     const host = await render(data);
-    const content = text(host);
 
-    expect(content).toMatch(/mancant/i);
-    expect(content).toContain('agosto 2026');
-    expect(content).toContain('luglio 2026');
+    expect(text(host.querySelector('.missing')!)).toBe('Mesi mancanti: agosto 2026');
+    expect(text(host.querySelector('.coverage')!)).toContain('luglio 2026');
   });
 
   it('mostra l\'ultimo residuo di ferie e di P.A.R. con l\'unità', async () => {
     const host = await render(coherent());
-    const content = text(host);
+    const types = [...host.querySelectorAll('.type')].map((type) => ({
+      title: text(type.querySelector('.title')!),
+      latest: text(type.querySelector('.latest')!)
+    }));
 
-    expect(content).toContain('Ferie');
-    expect(content).toContain('P.A.R.');
-    expect(content).toMatch(/\b46 ore/);
-    expect(content).toMatch(/\b2 ore/);
+    expect(types).toEqual([
+      { title: 'Ferie', latest: '46 ore ultimo residuo (ottobre 2026)' },
+      { title: 'P.A.R.', latest: '2 ore ultimo residuo (ottobre 2026)' }
+    ]);
   });
 
   it('mostra maturato e goduto nell\'anno dall\'ultimo progressivo, senza sommare i mesi', async () => {
     const host = await render(coherent());
-    const content = text(host);
+    const totals = [...host.querySelectorAll('.totals')].map((total) => text(total));
 
-    expect(content).toContain('2026');
-    // Ferie: maturato 14, goduto 8 — non 10+12+14 né 4+8+8.
-    expect(content).toMatch(/\b14\b/);
-    expect(content).toMatch(/\b8\b/);
-    expect(content).not.toMatch(/\b36\b/);
-    expect(content).not.toMatch(/\b20\b/);
-    // P.A.R.: maturato 6, goduto 4 — non 15 né 9.
-    expect(content).not.toMatch(/\b15\b/);
-    expect(content).not.toMatch(/\b9\b/);
+    // Ferie: maturato 14, goduto 8 (non 10+12+14 né 4+8+8); P.A.R.: 6 e 4 (non 15 né 9).
+    expect(totals).toEqual([
+      '2026, fino a ottobre 2026: maturato 14, goduto 8',
+      '2026, fino a ottobre 2026: maturato 6, goduto 4'
+    ]);
   });
 
   it('la cronologia dei residui è una tabella con un mese per riga, in ordine crescente', async () => {
@@ -265,10 +224,9 @@ describe('PayslipLeaveOverview', () => {
 
   it('mostra lo stato «Coerente» e non «Anomalia» quando i controlli tornano', async () => {
     const host = await render(coherent());
-    const content = text(host);
 
-    expect(content).toContain('Coerente');
-    expect(content).not.toContain('Anomalia');
+    expect(badges(host)).toEqual(['Coerente', 'Coerente']);
+    expect(host.querySelector('.anomalies')).toBeNull();
     expect(findButton(host, 'Vai al cedolino')).toBeUndefined();
   });
 
@@ -302,28 +260,23 @@ describe('PayslipLeaveOverview', () => {
     const data = coherent();
     data.types[1].status = 'non_verificabile';
     const host = await render(data);
-    const content = text(host);
 
-    expect(content).toContain('Non verificabile');
-    expect(content).toContain('Coerente');
-    expect(content).not.toContain('Anomalia');
+    expect(badges(host)).toEqual(['Coerente', 'Non verificabile']);
+    expect(host.querySelector('.anomalies')).toBeNull();
   });
 
   it('mostra lo stato «Anomalia» e la riga dell\'anomalia con mese, atteso, rilevato, differenza e motivo', async () => {
     const host = await render(withAnomaly());
-    const content = text(host);
 
-    expect(content).toContain('Anomalia');
+    expect(badges(host)).toEqual(['Anomalia', 'Coerente']);
     const button = findButton(host, 'Vai al cedolino');
     expect(button).toBeDefined();
-    const row = button!.closest('tr, li, article, [class*="anomal"]');
+    const row = button!.closest('.anomalies li');
     expect(row).not.toBeNull();
-    const rowText = (row!.textContent ?? '').replace(/\s+/g, ' ');
+    const rowText = text(row!);
 
     expect(rowText).toContain('settembre 2026');
-    expect(rowText).toMatch(/\b44\b/); // atteso
-    expect(rowText).toMatch(/\b40\b/); // rilevato
-    expect(rowText).toMatch(/[−-]\s?4\b/); // differenza
+    expect(rowText).toContain('atteso 44, rilevato 40, differenza −4');
     expect(rowText).toContain(ANOMALY_REASON);
   });
 
@@ -344,6 +297,7 @@ describe('PayslipLeaveOverview', () => {
     data.anomalies = [data.anomalies[0], second];
     const host = await render(data);
 
+    expect(host.querySelectorAll('.anomalies li')).toHaveLength(2);
     expect(buttons(host).filter((button) => button.textContent?.trim() === 'Vai al cedolino')).toHaveLength(2);
   });
 
@@ -399,6 +353,7 @@ describe('PayslipLeaveOverview', () => {
     });
 
     expect(buttons(host)).toHaveLength(0);
-    expect(text(host)).not.toContain('Anomalia');
+    expect(host.querySelector('.anomalies')).toBeNull();
+    expect(host.querySelector('.type')).toBeNull();
   });
 });

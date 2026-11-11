@@ -280,6 +280,69 @@ describe('PayslipsPage', () => {
     expect(text()).toContain('Nessun cedolino precedente da confrontare.');
   });
 
+  it('un mese nell\'URL che non esiste ricade sul più recente', async () => {
+    await harness.navigateByUrl('/payslips?period=2099-01', PayslipsPage);
+    await loadPage();
+    await flushDetail(detail());
+
+    const rows = root().querySelectorAll('table.payslips tbody tr');
+    expect(rows[0].classList.contains('selected')).toBe(true);
+    expect(rows[1].classList.contains('selected')).toBe(false);
+  });
+
+  describe('sottotitolo dell\'archivio', () => {
+    const subtitle = (): string =>
+      (root().querySelector('app-section-header')?.textContent ?? '').replace(/\s+/g, ' ');
+
+    it('senza cedolini spiega il flusso', async () => {
+      await harness.navigateByUrl('/payslips', PayslipsPage);
+      await loadPage([], { from: null, to: null, trend: [], comparisons: [] });
+
+      expect(subtitle()).toContain('Carica il PDF, verifica i valori estratti');
+    });
+
+    it('con un solo cedolino ne indica il mese', async () => {
+      await harness.navigateByUrl('/payslips', PayslipsPage);
+      await loadPage([SEPTEMBER], { from: null, to: null, trend: [], comparisons: [] });
+      await flushDetail(detail());
+
+      expect(subtitle()).toContain('1 cedolino in archivio: settembre 2026.');
+    });
+
+    it('con più cedolini ne dà il numero e l\'intervallo', async () => {
+      const october = summary({ id: 'p-10', period: '2026-10' });
+      await harness.navigateByUrl('/payslips', PayslipsPage);
+      await loadPage([october, SEPTEMBER, AUGUST], { from: null, to: null, trend: [], comparisons: [] });
+      await flushDetail(detail(october));
+
+      expect(subtitle()).toContain('3 cedolini in archivio, da agosto 2026 a ottobre 2026.');
+    });
+  });
+
+  it('un netto in calo rispetto al mese prima ha la variazione in tono negativo', async () => {
+    const lower = comparison();
+    lower.net = { currentCents: 200000, previousCents: 210000, deltaCents: -10000, deltaPercent: -4.8 };
+    await harness.navigateByUrl('/payslips', PayslipsPage);
+    await loadPage([SEPTEMBER, AUGUST], { ...summaries(), comparisons: [lower] });
+    await flushDetail(detail());
+
+    const delta = root().querySelector('app-stat-card-grid .card .delta');
+    expect(delta?.classList.contains('delta-negative')).toBe(true);
+    expect(delta?.classList.contains('delta-positive')).toBe(false);
+    expect(delta?.textContent).toContain('4,8%');
+  });
+
+  it('senza percentuale di variazione (mese precedente a zero) il netto non mostra alcun delta', async () => {
+    const noPercent = comparison();
+    noPercent.net = { currentCents: 200000, previousCents: 0, deltaCents: 200000, deltaPercent: null };
+    await harness.navigateByUrl('/payslips', PayslipsPage);
+    await loadPage([SEPTEMBER, AUGUST], { ...summaries(), comparisons: [noPercent] });
+    await flushDetail(detail());
+
+    expect(root().querySelector('app-stat-card-grid .delta')).toBeNull();
+    expect(root().querySelector('app-stat-card-grid')?.textContent).toContain('2000,00');
+  });
+
   it('scegliere un mese lo scrive nell\'URL', async () => {
     await harness.navigateByUrl('/payslips', PayslipsPage);
     await loadPage();
@@ -334,6 +397,17 @@ describe('PayslipsPage', () => {
     expect(root().querySelector('[role="alert"]')?.textContent).toContain('non è un PDF');
     expect(root().querySelector('app-payslip-review')).toBeNull();
     http.expectNone((request) => request.url.includes('payslip-analyses'));
+  });
+
+  it('un nome file con accenti viaggia codificato nell\'intestazione X-File-Name', async () => {
+    await harness.navigateByUrl('/payslips', PayslipsPage);
+    await loadPage([], { from: null, to: null, trend: [], comparisons: [] });
+
+    await chooseFile(new File(['%PDF'], 'cedolino è.pdf', { type: 'application/pdf' }));
+
+    const upload = expectOne('/api/payslip-analyses', 'POST');
+    expect(upload.request.headers.get('X-File-Name')).toBe('cedolino%20%C3%A8.pdf');
+    upload.flush(analysis());
   });
 
   it('rifiuta un PDF oltre i 10 MB senza chiamare il backend', async () => {
@@ -401,7 +475,7 @@ describe('PayslipsPage', () => {
     expect(root().querySelector('table.payslips')?.textContent).toContain('ottobre 2026');
   });
 
-  it('mostra l\'errore del backend e lascia la revisione aperta', async () => {
+  it('un PDF già importato (409) non apre la revisione e mostra l\'errore', async () => {
     await harness.navigateByUrl('/payslips', PayslipsPage);
     await loadPage([], { from: null, to: null, trend: [], comparisons: [] });
 
@@ -478,9 +552,9 @@ describe('PayslipsPage', () => {
     expect(root().querySelector('app-payslip-review')).toBeNull();
   });
 
-  it('elimina il cedolino dopo conferma e rilegge elenco e andamento', async () => {
+  it('elimina il cedolino dopo conferma, rilegge elenco e andamento e passa al mese rimasto', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
-    await harness.navigateByUrl('/payslips', PayslipsPage);
+    await harness.navigateByUrl('/payslips?period=2026-09', PayslipsPage);
     await loadPage();
     await flushDetail(detail());
 
@@ -493,6 +567,11 @@ describe('PayslipsPage', () => {
     expectOne('/api/payslip-summaries').flush({ from: null, to: null, trend: [], comparisons: [] });
     await settle();
     await flushDetail(detail(AUGUST));
+
+    // Il mese eliminato esce dall'URL: la selezione torna al più recente rimasto.
+    expect(router.url).not.toContain('period');
+    expect(root().querySelector('app-payslip-detail dl.meta')?.textContent).toContain('agosto 2026');
+    expect(root().querySelectorAll('table.payslips tbody tr')).toHaveLength(1);
   });
 
   it('non elimina se l\'utente non conferma', async () => {
@@ -529,6 +608,10 @@ describe('PayslipsPage', () => {
     expectOne('/api/payslip-summaries').flush(summaries());
     await settle();
     await flushDetail(detail());
+
+    // Salvato, il modulo si chiude e torna il dettaglio.
+    expect(root().querySelector('app-payslip-review')).toBeNull();
+    expect(root().querySelector('app-payslip-detail')).not.toBeNull();
   });
 
   describe('modifiche non salvate', () => {
@@ -1344,7 +1427,7 @@ describe('PayslipsPage', () => {
       expectOnlyActive(0);
     });
 
-    it('il cursore sulla riga è quello della mano e la riga non entra nell\'ordine di Tab', async () => {
+    it('la riga non ha un tabindex proprio e la cella del mese contiene il pulsante', async () => {
       await open(null);
 
       for (const row of rows()) {
@@ -1370,12 +1453,12 @@ describe('PayslipsPage', () => {
       expect(document.activeElement).toBe(target);
     });
 
-    it('da tastiera: Invio e Spazio sul pulsante (che il browser traduce in click) selezionano una sola volta', async () => {
+    it('un click sul pulsante del mese seleziona una sola volta, e il fuoco resta sul pulsante', async () => {
       await open(null);
 
       const target = monthButtons()[1];
       target.focus();
-      // jsdom non traduce i tasti in click: lo fa il browser su un <button>.
+      // Invio e Spazio li traduce in click il browser su un <button>: la tastiera vera è nell'e2e.
       target.click();
       await settle();
 
