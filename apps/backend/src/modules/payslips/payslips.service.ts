@@ -35,7 +35,8 @@ import type {
  * Le regole vivono qui:
  *
  *  - un PDF entra una volta sola (hash del contenuto);
- *  - un mese ha un solo cedolino: sostituirlo va chiesto esplicitamente;
+ *  - un mese ha un solo cedolino per tipo (ordinario, tredicesima…):
+ *    sostituirlo va chiesto esplicitamente;
  *  - nulla viene salvato senza che l'utente abbia visto e confermato i dati;
  *  - il PDF e le righe nascono e muoiono insieme, nella stessa transazione:
  *    il documento è una riga dell'archivio, non un file accanto.
@@ -58,6 +59,14 @@ const monthFormatter = new Intl.DateTimeFormat('it-IT', { month: 'long', year: '
 function monthLabel(period: string): string {
   return monthFormatter.format(new Date(`${period}-01T00:00:00`));
 }
+
+/** Il tipo come compare nei messaggi: «un cedolino <tipo> per <mese>». */
+export const KIND_LABELS: Record<PayslipKind, string> = {
+  ordinary: 'ordinario',
+  thirteenth: 'di tredicesima',
+  fourteenth: 'di quattordicesima',
+  adjustment: 'di conguaglio',
+};
 
 function sha256(bytes: Uint8Array): string {
   return createHash('sha256').update(bytes).digest('hex');
@@ -231,7 +240,7 @@ export function createPayslipsService(deps: PayslipsServiceDeps) {
       const existing = repository.findRowByPeriodAndKind(data.period, data.kind);
       if (existing !== null && !data.replaceExisting) {
         throw new ConflictError(
-          `Esiste già un cedolino per ${monthLabel(data.period)}: conferma la sostituzione oppure annulla.`,
+          `Esiste già un cedolino ${KIND_LABELS[data.kind]} per ${monthLabel(data.period)}: conferma la sostituzione oppure annulla.`,
         );
       }
 
@@ -289,10 +298,14 @@ export function createPayslipsService(deps: PayslipsServiceDeps) {
         'Modifica del cedolino non valida.',
       );
 
-      if (header.period !== undefined && header.period !== current.period) {
-        const other = repository.findRowByPeriodAndKind(header.period, current.kind);
+      // Il conflitto si cerca sulla destinazione: un PATCH senza `kind` o senza
+      // `period` conserva il valore di partenza.
+      const period = header.period ?? current.period;
+      const kind = header.kind ?? current.kind;
+      if (period !== current.period || kind !== current.kind) {
+        const other = repository.findRowByPeriodAndKind(period, kind);
         if (other !== null) {
-          throw new ConflictError(`Esiste già un cedolino per ${monthLabel(header.period)}.`);
+          throw new ConflictError(`Esiste già un cedolino ${KIND_LABELS[kind]} per ${monthLabel(period)}.`);
         }
       }
 
@@ -321,14 +334,14 @@ export function createPayslipsService(deps: PayslipsServiceDeps) {
     },
 
     /** Il PDF originale, per aprirlo: i byte vengono dall'archivio. */
-    document(id: string): { content: Buffer; period: string } {
+    document(id: string): { content: Buffer; period: string; kind: PayslipKind } {
       const payslip = requirePayslip(id);
       const content = repository.findDocument(id);
       if (content === null) {
         throw new NotFoundError('Il PDF originale di questo cedolino non è più disponibile.');
       }
 
-      return { content, period: payslip.period };
+      return { content, period: payslip.period, kind: payslip.kind };
     },
 
     summaries(filter: { from: string | null; to: string | null }): PayslipSummariesViewModel {
@@ -338,7 +351,8 @@ export function createPayslipsService(deps: PayslipsServiceDeps) {
         throw new ValidationError('Intervallo non valido: "from" è successivo a "to".');
       }
 
-      return summarize(repository.listComplete(to), from, to);
+      // Solo gli ordinari: una tredicesima non è il mese successivo all'ordinario.
+      return summarize(repository.listComplete(to, 'ordinary'), from, to);
     },
   };
 }

@@ -103,7 +103,8 @@ export function createPayslipsRouter(
     const document = service.document(required(req.params.id, 'del cedolino'));
 
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="cedolino-${document.period}.pdf"`);
+    const suffisso = document.kind === 'ordinary' ? '' : `-${document.kind}`;
+    res.setHeader('Content-Disposition', `inline; filename="cedolino-${document.period}${suffisso}.pdf"`);
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.send(document.content);

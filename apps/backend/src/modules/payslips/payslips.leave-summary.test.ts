@@ -189,6 +189,28 @@ describe('riepilogo ferie su tre cedolini caricati fuori ordine', () => {
   });
 });
 
+describe('i cedolini non ordinari non entrano nella verifica', () => {
+  it('una tredicesima con saldi incoerenti, nel mese che manca o in uno presente, non cambia nulla', async () => {
+    const prima = summaries();
+    assert.deepEqual(prima.leave.coverage.missingPeriods, ['2026-02']);
+
+    // Saldi che non discendono da nessun ordinario, nel mese mancante e in marzo.
+    for (const mese of ['Febbraio 2026', 'Marzo 2026'] as const) {
+      const analysis = await payslipsService.analyze(
+        syntheticPayslipPdf({ month: mese, edit: withBalances([6, 1, 77], [3, 1, 55], 10, 2, 'Tredicesima') }),
+        'tredicesima.pdf',
+      );
+      const creato = payslipsService.create({ analysisId: analysis.id, ...analysis.draft, kind: 'thirteenth' });
+      assert.equal(creato.kind, 'thirteenth');
+    }
+
+    const dopo = summaries();
+    assert.deepEqual(dopo.leave.anomalies, []);
+    assert.deepEqual(dopo, prima);
+    assert.deepEqual(dopo.leave.coverage.missingPeriods, ['2026-02']);
+  });
+});
+
 describe('nessun dato derivato è salvato', () => {
   it('nessuna tabella dei cedolini ha nomi di anomalie, verifiche o variazioni', () => {
     const tables = db

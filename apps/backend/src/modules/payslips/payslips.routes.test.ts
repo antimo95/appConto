@@ -463,3 +463,131 @@ describe('messaggi di validazione', () => {
     inItaliano(await chiama('PATCH', `/payslips/${salvato.id}`, { json: { leaveBalances: [{}] } }));
   });
 });
+
+describe('tipo di cedolino', () => {
+  /** Lo stesso mese con un'altra riga: PDF diverso, hash diverso. */
+  const dicembre = (variante: string): Buffer =>
+    syntheticPayslipPdf({ month: 'Dicembre 2025', edit: (lines) => [...lines, [60, 30, variante]] });
+
+  const conferma = async (variante: string, extra: Record<string, unknown> = {}): Promise<Risposta> => {
+    const analisi = await analizza(dicembre(variante));
+    return chiama('POST', '/payslips', { json: { analysisId: analisi.id, ...analisi.draft, ...extra } });
+  };
+
+  let ordinario: Dettaglio;
+  let tredicesima: Dettaglio & { kind: string };
+
+  it('un ordinario e una tredicesima dello stesso mese coesistono, l\'ordinario per primo', async () => {
+    const prima = await conferma('Mensilita A');
+    assert.equal(prima.status, 201, JSON.stringify(prima.body));
+    ordinario = prima.body as Dettaglio;
+    assert.equal((ordinario as Dettaglio & { kind: string }).kind, 'ordinary');
+
+    // La tredicesima viene creata per seconda: l'ordine dell'elenco non è quello di inserimento.
+    const seconda = await conferma('Mensilita B', { kind: 'thirteenth' });
+    assert.equal(seconda.status, 201, JSON.stringify(seconda.body));
+    tredicesima = seconda.body as Dettaglio & { kind: string };
+    assert.equal(tredicesima.kind, 'thirteenth');
+
+    for (const verso of ['desc', 'asc']) {
+      const elenco = await chiama('GET', `/payslips?from=2025-12&to=2025-12&sortDirection=${verso}`);
+      assert.deepEqual(
+        (elenco.body as { items: { id: string; kind: string }[] }).items.map((item) => [item.id, item.kind]),
+        [
+          [ordinario.id, 'ordinary'],
+          [tredicesima.id, 'thirteenth'],
+        ],
+        verso,
+      );
+    }
+  });
+
+  it('un secondo ordinario dello stesso mese è un 409 che nomina il tipo', async () => {
+    const risposta = await conferma('Mensilita C');
+
+    assert.equal(risposta.status, 409);
+    assert.match(errore(risposta), /^Esiste già un cedolino ordinario per dicembre 2025/);
+  });
+
+  it('un secondo cedolino dello stesso tipo non ordinario dice il tipo', async () => {
+    const risposta = await conferma('Mensilita D', { kind: 'thirteenth' });
+
+    assert.equal(risposta.status, 409);
+    assert.match(errore(risposta), /^Esiste già un cedolino di tredicesima per dicembre 2025/);
+  });
+
+  it('un tipo che non esiste è un 400 in italiano', async () => {
+    const risposta = await conferma('Mensilita E', { kind: 'bonus' });
+
+    assert.equal(risposta.status, 400);
+    assert.match(errore(risposta), /Tipo di cedolino non valido/);
+  });
+
+  it('il conflitto dell\'analisi riguarda l\'ordinario del mese', async () => {
+    const analisi = await analizza(dicembre('Mensilita F'));
+
+    assert.deepEqual(analisi.conflict, { payslipId: ordinario.id, period: '2025-12', kind: 'ordinary' });
+    await chiama('DELETE', `/payslip-analyses/${analisi.id}`);
+  });
+
+  it('PATCH senza kind non cambia il tipo', async () => {
+    const risposta = await chiama('PATCH', `/payslips/${tredicesima.id}`, { json: { netCents: 123456 } });
+
+    assert.equal(risposta.status, 200, JSON.stringify(risposta.body));
+    assert.equal((risposta.body as { kind: string }).kind, 'thirteenth');
+    assert.equal((risposta.body as Dettaglio).netCents, 123456);
+    const riletto = await chiama('GET', `/payslips/${tredicesima.id}`);
+    assert.equal((riletto.body as { kind: string }).kind, 'thirteenth');
+  });
+
+  it('PATCH che porta la tredicesima a ordinario nel mese di un ordinario è un 409', async () => {
+    const risposta = await chiama('PATCH', `/payslips/${tredicesima.id}`, { json: { kind: 'ordinary' } });
+
+    assert.equal(risposta.status, 409);
+    assert.match(errore(risposta), /^Esiste già un cedolino ordinario per dicembre 2025/);
+    const riletto = await chiama('GET', `/payslips/${tredicesima.id}`);
+    assert.equal((riletto.body as { kind: string }).kind, 'thirteenth');
+  });
+
+  it('PATCH che cambia il tipo in uno libero è consentito', async () => {
+    const risposta = await chiama('PATCH', `/payslips/${tredicesima.id}`, { json: { kind: 'adjustment' } });
+
+    assert.equal(risposta.status, 200, JSON.stringify(risposta.body));
+    assert.equal((risposta.body as { kind: string }).kind, 'adjustment');
+    await chiama('PATCH', `/payslips/${tredicesima.id}`, { json: { kind: 'thirteenth' } });
+  });
+
+  it('il nome del PDF scaricato porta il tipo, tranne per l\'ordinario', async () => {
+    const disposizione = async (id: string): Promise<string | null> =>
+      (await fetch(`${base}/payslips/${id}/document`)).headers.get('content-disposition');
+
+    assert.equal(await disposizione(ordinario.id), 'inline; filename="cedolino-2025-12.pdf"');
+    assert.equal(await disposizione(tredicesima.id), 'inline; filename="cedolino-2025-12-thirteenth.pdf"');
+  });
+
+  it('la tredicesima non entra in andamento né confronti', async () => {
+    const risposta = await chiama('GET', '/payslip-summaries?from=2025-12&to=2025-12');
+    const sintesi = risposta.body as {
+      trend: { payslipId: string }[];
+      comparisons: { payslipId: string; previousPeriod: string }[];
+    };
+
+    assert.deepEqual(sintesi.trend.map((punto) => punto.payslipId), [ordinario.id]);
+    // Un solo confronto per dicembre, quello dell'ordinario, e non con la tredicesima dello stesso mese.
+    assert.deepEqual(sintesi.comparisons.map((confronto) => confronto.payslipId), [ordinario.id]);
+    assert.notEqual(sintesi.comparisons[0]?.previousPeriod, '2025-12');
+  });
+
+  it('con replaceExisting sostituisce solo il cedolino dello stesso tipo', async () => {
+    const risposta = await conferma('Mensilita G', { replaceExisting: true });
+
+    assert.equal(risposta.status, 201, JSON.stringify(risposta.body));
+    assert.equal((await chiama('GET', `/payslips/${ordinario.id}`)).status, 404);
+    assert.equal((await chiama('GET', `/payslips/${tredicesima.id}`)).status, 200);
+    const elenco = await chiama('GET', '/payslips?from=2025-12&to=2025-12');
+    assert.deepEqual(
+      (elenco.body as { items: { kind: string }[] }).items.map((item) => item.kind),
+      ['ordinary', 'thirteenth'],
+    );
+  });
+});
