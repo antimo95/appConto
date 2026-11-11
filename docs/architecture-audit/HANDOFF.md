@@ -5,7 +5,7 @@ Punto di ingresso per la prossima sessione. Fotografia dello stato operativo: le
 ## Stato generale
 
 - **Ultimo aggiornamento:** 2026-11-11.
-- **Branch:** `consolidamento/fase-1` (da `master` a `f072a59`). Non pushato.
+- **Branch:** `consolidamento/fase-1` (da `master` a `f072a59`). Pubblicato su `origin` il 2026-11-11; merge in `master` tramite pull request aperta dal proprietario. Prima di riprendere, verificare se è già stato unito.
 - **HEAD:** commit di C-06 (vedi `git log --oneline -6`). Precedenti: `f52071c` (A-03), `ffb527d` (A-02), `4e7fcf5` (A-04, A-05a), `2a5e7f8` (documenti di audit e piano).
 - **Working tree:** pulito dopo il commit di C-06.
 - **Roadmap:** fase 1 chiusa (A-04, A-05a, A-02, A-03, C-06 COMPLETED; A-05b BLOCKED da A-01). Prossima: fase 2, C-03 → C-04. DEFERRED fuori perimetro: A-01, E-02, F-05. C-04 PARTIALLY COMPLETED (stato di partenza). Osservazione G-03 aperta (§9). Dettaglio in `PLAN.md` §3.
